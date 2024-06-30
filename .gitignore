@@ -177,5 +177,5 @@ pyrightconfig.json
 
 # Local definitions
 .vscode
-*.dat
-*.vasp
+output/**/POSCAR
+output/**/*.dat
