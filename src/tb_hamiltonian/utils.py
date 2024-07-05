@@ -48,10 +48,12 @@ def get_structure(
         unit_cell = read(unit_cell_filepath, format=unit_cell_file_format)
         if repetitions is not None:
             nx, ny, nz = repetitions
-            return unit_cell.repeat((nx, ny, nz))  # type: ignore
+            structure = unit_cell.repeat((nx, ny, nz))  # type: ignore
+            return sort_atoms(structure)
         elif lengths is not None:
             nx, ny, nz = lengths // unit_cell.cell.lengths()  # type: ignore
-            return unit_cell.repeat([int(i) for i in (nx, ny, nz)])  # type: ignore
+            structure = unit_cell.repeat([int(i) for i in (nx, ny, nz)])  # type: ignore
+            return sort_atoms(structure)
         else:
             return sort_atoms(unit_cell)  # type: ignore
     elif structure_filepath:
