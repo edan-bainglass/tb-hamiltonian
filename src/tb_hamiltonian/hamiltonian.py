@@ -164,7 +164,7 @@ class TightBindingHamiltonian:
     def write_to_file(
         self,
         path: Path = Path("output/example"),
-        filename: str = "TG_Hr.dat",
+        filename: str = "TG_hr.dat",
     ) -> None:
         """Write the Hamiltonian to a file.
 
