@@ -14,5 +14,8 @@ classifiers = ["Operating System :: OS Independent", "Private :: Do Not Upload"]
 dynamic = ["version", "description"]
 dependencies = ["numpy", "scipy", "matplotlib", "ase"]
 
+[project.optional-dependencies]
+mpi = ["mpi4py"]
+
 [project.urls]
 Source = "https://github.com/edan-bainglass/tb-hamiltonian"

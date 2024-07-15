@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import itertools
 import typing as t
 from collections import OrderedDict
@@ -137,6 +138,7 @@ class TBHamiltonian:
         k_points: np.ndarray,
         use_sparse_solver=False,
         sparse_solver_params: dict | None = None,
+        use_mpi=False,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute the band structure.
 
@@ -148,14 +150,14 @@ class TBHamiltonian:
             Whether to use the sparse solver.
         `sparse_solver_params` : `dict`, optional
             Parameters for the sparse solver.
+        `use_mpi` : `bool`, optional
+            Whether to use the MPI parallelization.
 
         Returns
         -------
         `tuple[np.ndarray, np.ndarray]`
             Distances and band structure.
         """
-        from multiprocessing import Pool, cpu_count
-
         if sparse_solver_params is None:
             sparse_solver_params = {
                 "k": 10,
@@ -164,18 +166,22 @@ class TBHamiltonian:
                 "tol": 1e-6,
             }
 
-        pool = Pool(cpu_count())
-        results = pool.map(self.get_kamiltonian, k_points)
-        pool.close()
-
-        band_structure = []
-        for H_k in results:
-            eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
-            band_structure.append(eigenvalues)
-
-        distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
-
-        return distances, np.array(band_structure)
+        if use_mpi:
+            if importlib.util.find_spec("mpi4py") is None:
+                print("mpi4py is not installed. ", end="")
+            else:
+                print("Using MPI parallelization")
+                return self._get_band_structure_mpi(
+                    k_points,
+                    use_sparse_solver,
+                    sparse_solver_params,
+                )
+        print("Using multiprocessing parallelization")
+        return self._get_band_structure_multiprocessing(
+            k_points,
+            use_sparse_solver,
+            sparse_solver_params,
+        )
 
     def write_to_file(
         self,
@@ -317,6 +323,7 @@ class TBHamiltonian:
         points_per_segment: int,
         use_sparse_solver=False,
         sparse_solver_params: dict | None = None,
+        use_mpi=False,
     ):
         """Plot the band structure.
 
@@ -332,6 +339,8 @@ class TBHamiltonian:
             Whether to use the sparse solver.
         `sparse_solver_params` : `dict`, optional
             Parameters for the sparse solver.
+        `use_mpi` : `bool`, optional
+            Whether to use the MPI parallelization.
         """
         path = k_path.split()
         segments = np.array([high_sym_points[k] for k in path])
@@ -340,6 +349,7 @@ class TBHamiltonian:
             k_points,
             use_sparse_solver,
             sparse_solver_params,
+            use_mpi,
         )
 
         for band in bands.T:
@@ -640,6 +650,89 @@ class TBHamiltonian:
             points = np.array(list(zip(kx, ky, kz)))
             k_points.append(points)
         return np.concatenate(k_points)
+
+    def _get_band_structure_mpi(
+        self,
+        k_points: np.ndarray,
+        use_sparse_solver: bool,
+        sparse_solver_params: dict,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute the band structure using the MPI parallelization.
+
+        Parameters
+        ----------
+        `k_points` : `np.ndarray`
+            List of k-points.
+        `use_sparse_solver` : `bool`
+            Whether to use the sparse solver.
+        `sparse_solver_params` : `dict`
+            Parameters for the sparse solver.
+
+        Returns
+        -------
+        `tuple[np.ndarray, np.ndarray]`
+            Distances and band structure.
+        """
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        local_k_points = np.array_split(k_points, size)[rank]
+
+        local_band_structure = []
+        for k_point in local_k_points:
+            H_k = self.get_kamiltonian(k_point)
+            eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
+            local_band_structure.append(eigenvalues)
+
+        all_band_structure = comm.gather(local_band_structure, root=0)
+
+        if rank == 0:
+            band_structure = [item for sublist in all_band_structure for item in sublist]  # type: ignore
+            distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
+            return distances, np.array(band_structure)
+
+        return np.array([]), np.array([])
+
+    def _get_band_structure_multiprocessing(
+        self,
+        k_points: np.ndarray,
+        use_sparse_solver: bool,
+        sparse_solver_params: dict,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute the band structure using the multiprocessing parallelization.
+
+        Parameters
+        ----------
+        `k_points` : `np.ndarray`
+            List of k-points.
+        `use_sparse_solver` : `bool`
+            Whether to use the sparse solver.
+        `sparse_solver_params` : `dict`
+            Parameters for the sparse solver.
+
+        Returns
+        -------
+        `tuple[np.ndarray, np.ndarray]`
+            Distances and band structure.
+        """
+        from multiprocessing import Pool, cpu_count
+
+        pool = Pool(cpu_count())
+        results = pool.map(self.get_kamiltonian, k_points)
+        pool.close()
+        pool.join()
+
+        band_structure = []
+        for H_k in results:
+            eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
+            band_structure.append(eigenvalues)
+
+        distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
+
+        return distances, np.array(band_structure)
 
     def __getitem__(self, i: int) -> sparse.lil_matrix:
         return self.matrix[i]
