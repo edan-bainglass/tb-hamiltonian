@@ -128,7 +128,7 @@ class TriangularPotential(PotentialFunction):
     def apply(self, coordinates: np.ndarray) -> float:
         amplitude = self.params.get("amplitude", 1.0)
         width = self.params.get("width", 1.0)
-        height = self.params.get("height", 1.0)
+        height = self.params.get("height", 2 * width)
         n = self.params.get("n", 1)
         m = self.params.get("m", 1)
         x, y, _ = coordinates
