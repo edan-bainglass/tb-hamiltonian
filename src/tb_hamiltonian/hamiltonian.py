@@ -132,25 +132,25 @@ class TightBindingHamiltonian:
         """Plot the Hamiltonian matrix."""
         Hr = self[R_index].toarray()
         end = self.natoms if end < start else end
-        plt.figure(figsize=figsize)
-        plt.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
-        plt.xticks(
+        fig, ax = plt.subplots(figsize=figsize)
+        image = ax.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
+        ax.set_xticks(
             np.arange(0, end - start, step),
             [str(i) for i in np.arange(start, end, step) + 1],
         )
-        plt.yticks(
+        ax.set_yticks(
             np.arange(0, end - start, step),
             [str(i) for i in np.arange(start, end, step) + 1],
         )
-        plt.colorbar()
+        fig.colorbar(image, ax=ax)
         plt.show()
 
-    def plot_grid(self):
+    def plot_grid(self, show_ticks=False, show_labels=False, figsize=(5, 5)):
         """Plot the search grid."""
         if not self.grid:
             return "Grid not yet generated. Run the `build` method first."
 
-        _, ax = plt.subplots()
+        _, ax = plt.subplots(figsize=figsize)
         ax.set_aspect("equal")
 
         gxs = self.structure.cell.lengths()[0] / self.ngx
@@ -171,9 +171,13 @@ class TightBindingHamiltonian:
 
         ax.set_xlim(0, self.structure.cell.lengths()[0])
         ax.set_ylim(0, self.structure.cell.lengths()[1])
-        ax.set_xticks(np.arange(0, self.structure.cell.lengths()[0], gxs))
-        ax.set_yticks(np.arange(0, self.structure.cell.lengths()[1], gys))
-        ax.grid(True)
+
+        if show_ticks:
+            ax.set_xticks(np.arange(0, self.structure.cell.lengths()[0], gxs))
+            ax.set_yticks(np.arange(0, self.structure.cell.lengths()[1], gys))
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
 
         inter_layer_height = 0.5 * self.structure.cell.lengths()[2]
 
@@ -181,11 +185,29 @@ class TightBindingHamiltonian:
             x, y, z = atom.position
             if z < inter_layer_height:
                 ax.plot(x, y, "o", color="blue")
-                ax.text(x, y - 0.1, atom.index, fontsize=12, ha="center", va="center")
+                if show_labels:
+                    ax.text(x, y - 0.1, atom.index, fontsize=12, ha="center", va="center")
             else:
                 ax.plot(x + 0.05, y, "o", color="red")
-                ax.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
+                if show_labels:
+                    ax.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
 
+        plt.show()
+
+    def plot_potential(self, figsize=(5, 5)):
+        """Plot the potential over the atoms."""
+        scaled = self.structure.get_scaled_positions()
+        x, y = scaled[:, 0], scaled[:, 1]
+
+        V = np.zeros(self.natoms)
+        for ai in range(self.natoms):
+            V[ai] = self[4][ai, ai]
+
+        _, ax = plt.subplots(figsize=figsize)
+        ax.scatter(x, y, c=V, cmap="rainbow", s=20)
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_title("On-site potential")
         plt.show()
 
     def _get_search_grid(self) -> list[list[list[int]]]:
