@@ -324,6 +324,7 @@ class TBHamiltonian:
         use_sparse_solver=False,
         sparse_solver_params: dict | None = None,
         use_mpi=False,
+        savefig_path="bands.png",
     ):
         """Plot the band structure.
 
@@ -366,6 +367,7 @@ class TBHamiltonian:
         plt.xticks(tick_positions, path)
         plt.ylim(np.min(bands), np.max(bands))
         plt.ylabel("Energy (eV)")
+        plt.savefig(savefig_path)
         plt.show()
 
     def _get_search_grid(self) -> list[list[list[int]]]:
