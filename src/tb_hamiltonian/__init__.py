@@ -4,10 +4,10 @@ tb_hamiltonian module
 This module provides functionality for calculating the tight-binding Hamiltonian.
 """
 
-from .hamiltonian import TightBindingHamiltonian
+from .hamiltonian import TBHamiltonian
 
 __all__ = [
-    "TightBindingHamiltonian",
+    "TBHamiltonian",
 ]
 
 __version__ = "0.1.0"

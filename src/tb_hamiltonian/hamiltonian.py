@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from matplotlib.patches import Rectangle
-from scipy.sparse import lil_matrix
+from scipy import sparse
 
 from .potentials import PotentialFactory, PotentialFunction
 
 
-class TightBindingHamiltonian:
-    """docstring"""
+class TBHamiltonian:
+    """Class to represent the tight-binding Hamiltonian of a system."""
 
     def __init__(
         self,
@@ -25,7 +25,21 @@ class TightBindingHamiltonian:
         hopping_parameters: list[float],
         interlayer_coupling: float,
     ):
-        """docstring"""
+        """`TBHamiltonian` constructor.
+
+        Parameters
+        ----------
+        `structure` : `Atoms`
+            Atomic structure of the system.
+        `nearest_neighbor` : `int`
+            1: nearest neighbor, 2: next-nearest neighbor, etc.
+        `distances` : `list[float]`
+            List of distances corresponding to the hopping parameters.
+        `hopping_parameters` : `list[float]`
+            List of hopping parameters corresponding to the distances.
+        `interlayer_coupling` : `float`
+            Interlayer coupling parameter.
+        """
         self.structure = structure
         self.threshold = distances[nearest_neighbor]
         self.distances = distances
@@ -33,7 +47,7 @@ class TightBindingHamiltonian:
         self.interlayer_coupling = interlayer_coupling
         self.natoms = len(structure)
         self.R = [np.array([i, j, 0]) for i in range(-1, 2) for j in range(-1, 2)]
-        self.matrix = [lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
+        self.matrix = [sparse.lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
         self._interaction_count_dict = OrderedDict.fromkeys(range(1, self.natoms + 1), 0)
 
         self.R_index_map: dict[tuple[int, int], int] = {
@@ -452,10 +466,10 @@ class TightBindingHamiltonian:
             0.0,
         )
 
-    def __getitem__(self, key: int) -> lil_matrix:
-        return self.matrix[key]
+    def __getitem__(self, i: int) -> sparse.lil_matrix:
+        return self.matrix[i]
 
-    def __iter__(self):
+    def __iter__(self) -> t.Iterator[sparse.lil_matrix]:
         return iter(self.matrix)
 
     def __str__(self) -> str:
