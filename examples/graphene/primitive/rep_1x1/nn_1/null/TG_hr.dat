@@ -1,0 +1,11 @@
+! Tight binding model for BLG system, theta=0
+    6  ! Number of non-zeros lines of HmnR
+    2  ! Number of Wannier functions
+    9  ! Number of R points
+    1    1    1    1    1    1    1    1    1
+   -1    0    0       2       1    -2.700000     0.000000
+    0   -1    0       1       2    -2.700000     0.000000
+    0    0    0       1       2    -2.700000     0.000000
+    0    0    0       2       1    -2.700000     0.000000
+    0    1    0       2       1    -2.700000     0.000000
+    1    0    0       1       2    -2.700000     0.000000
