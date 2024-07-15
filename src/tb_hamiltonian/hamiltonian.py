@@ -120,6 +120,8 @@ class TBHamiltonian:
         ----------
         `k` : `np.ndarray`
             k-vector in the reciprocal space.
+        `consider_atomic_positions` : `bool`, optional
+            Whether to consider the atomic positions when building the Hamiltonian.
 
         Returns
         -------
@@ -165,11 +167,32 @@ class TBHamiltonian:
                     Rx, Ry, Rz = r
                     file.write(f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n")
 
-    def plot_matrix(self, R_index: int = 4, start=0, end=-1, step=1, figsize=(5, 5)):
-        """Plot the Hamiltonian matrix."""
+    def plot_matrix(
+        self,
+        R_index=4,
+        start=0,
+        end=-1,
+        step=1,
+        plot_params: dict | None = None,
+    ):
+        """Plot the Hamiltonian matrix.
+
+        Parameters
+        ----------
+        `R_index` : `int`, optional
+            Index of the Hamiltonian matrix.
+        `start` : `int`, optional
+            Start index of the plot.
+        `end` : `int`, optional
+            End index of the plot.
+        `step` : `int`, optional
+            Step size for the ticks.
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        """
         Hr = self[R_index].toarray()
         end = self.natoms if end < start else end
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(**plot_params or {})
         image = ax.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
         ax.set_xticks(
             np.arange(0, end - start, step),
@@ -182,12 +205,27 @@ class TBHamiltonian:
         fig.colorbar(image, ax=ax)
         plt.show()
 
-    def plot_grid(self, show_ticks=False, show_labels=False, figsize=(5, 5)):
-        """Plot the search grid."""
+    def plot_grid(
+        self,
+        show_ticks=False,
+        show_labels=False,
+        plot_params: dict | None = None,
+    ):
+        """Plot the search grid.
+
+        Parameters
+        ----------
+        `show_ticks` : `bool`, optional
+            Whether to show the grid ticks.
+        `show_labels` : `bool`, optional
+            Whether to show the atom labels.
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        """
         if not self.grid:
             return "Grid not yet generated. Run the `build` method first."
 
-        _, ax = plt.subplots(figsize=figsize)
+        _, ax = plt.subplots(**plot_params or {})
         ax.set_aspect("equal")
 
         gxs = self.structure.cell.lengths()[0] / self.ngx
@@ -231,8 +269,14 @@ class TBHamiltonian:
 
         plt.show()
 
-    def plot_potential(self, figsize=(5, 5)):
-        """Plot the potential over the atoms."""
+    def plot_potential(self, plot_params: dict | None = None):
+        """Plot the potential over the atoms.
+
+        Parameters
+        ----------
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        """
         scaled = self.structure.get_scaled_positions()
         x, y = scaled[:, 0], scaled[:, 1]
 
@@ -240,7 +284,7 @@ class TBHamiltonian:
         for ai in range(self.natoms):
             V[ai] = self[4][ai, ai]
 
-        _, ax = plt.subplots(figsize=figsize)
+        _, ax = plt.subplots(**plot_params or {})
         ax.scatter(x, y, c=V, cmap="rainbow", s=20)
         ax.set_xlabel("x")
         ax.set_ylabel("y")
@@ -388,7 +432,14 @@ class TBHamiltonian:
             self._interaction_count_dict[ai + 1] += 1
             self._interaction_count_dict[aj + 1] += 1
 
-    def _apply_boundary_conditions(self, aj: int, gy: int, gx: int, ny: int, nx: int):
+    def _apply_boundary_conditions(
+        self,
+        aj: int,
+        gy: int,
+        gx: int,
+        ny: int,
+        nx: int,
+    ) -> tuple[np.ndarray, int, int]:
         """Apply periodic boundary conditions to the atom coordinates.
 
         Parameters
@@ -403,6 +454,11 @@ class TBHamiltonian:
             Neighboring grid cell shift in the y direction.
         `nx` : `int`
             Neighboring grid cell shift in the x direction.
+
+        Returns
+        -------
+        `tuple[np.ndarray, int, int]`
+            Adjusted coordinates and nearest neighbor shifts.
         """
         coords_j = self.structure.positions[aj]
 
@@ -445,22 +501,22 @@ class TBHamiltonian:
         Parameters
         ----------
         `ng` : `int`
-            number of grid cells in a given direction
+            Number of grid cells in the handled direction.
         `g` : `int`
-            index of grid cell in a given direction
+            Index of the grid cell.
         `n` : `int`
-            index of neighboring grid cell in a given direction
+            Neighboring grid cell shift in the handled direction.
         `R` : `int`
-            R vector component in a given direction
+            R vector component in the handled direction.
         `coords_j` : `np.ndarray`
-            coordinates of atom j
+            Coordinates of atom j.
         `v` : `np.ndarray`
-            lattice vector in a given direction
+            Lattice vector component.
 
         Returns
         -------
         `tuple[np.ndarray, int]`
-            adjusted coordinates of atom j and R vector component
+            Adjusted coordinates of atom j and R vector component.
         """
         if n != 0:
             if g == 0 and g + n < g and (g + n) % ng == ng - 1:
@@ -477,12 +533,12 @@ class TBHamiltonian:
         Parameters
         ----------
         `distance` : `float`
-            distance between two atoms
+            Distance between two atoms.
 
         Returns
         -------
         `float`
-            hopping parameter corresponding to the distance
+            Hopping parameter corresponding to the distance.
         """
         return next(
             (self.hopping_parameters[i] for i, d in enumerate(self.distances) if distance == d),
