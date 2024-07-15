@@ -212,14 +212,7 @@ class TBHamiltonian:
                     Rx, Ry, Rz = r
                     file.write(f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n")
 
-    def plot_matrix(
-        self,
-        R_index=4,
-        start=0,
-        end=-1,
-        step=1,
-        plot_params: dict | None = None,
-    ):
+    def plot_matrix(self, R_index=4, start=0, end=-1, step=1):
         """Plot the Hamiltonian matrix.
 
         Parameters
@@ -232,30 +225,22 @@ class TBHamiltonian:
             End index of the plot.
         `step` : `int`, optional
             Step size for the ticks.
-        `plot_params` : `dict`, optional
-            Plot parameters.
         """
         Hr = self[R_index].toarray()
         end = self.natoms if end < start else end
-        fig, ax = plt.subplots(**plot_params or {})
-        image = ax.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
-        ax.set_xticks(
+        plt.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
+        plt.xticks(
             np.arange(0, end - start, step),
             [str(i) for i in np.arange(start, end, step) + 1],
         )
-        ax.set_yticks(
+        plt.yticks(
             np.arange(0, end - start, step),
             [str(i) for i in np.arange(start, end, step) + 1],
         )
-        fig.colorbar(image, ax=ax)
+        plt.colorbar()
         plt.show()
 
-    def plot_grid(
-        self,
-        show_ticks=False,
-        show_labels=False,
-        plot_params: dict | None = None,
-    ):
+    def plot_grid(self, show_ticks=False, show_labels=False):
         """Plot the search grid.
 
         Parameters
@@ -264,13 +249,11 @@ class TBHamiltonian:
             Whether to show the grid ticks.
         `show_labels` : `bool`, optional
             Whether to show the atom labels.
-        `plot_params` : `dict`, optional
-            Plot parameters.
         """
         if not self.grid:
             return "Grid not yet generated. Run the `build` method first."
 
-        _, ax = plt.subplots(**plot_params or {})
+        _, ax = plt.subplots()
         ax.set_aspect("equal")
 
         gxs = self.structure.cell.lengths()[0] / self.ngx
@@ -314,26 +297,17 @@ class TBHamiltonian:
 
         plt.show()
 
-    def plot_potential(self, plot_params: dict | None = None):
-        """Plot the potential over the atoms.
-
-        Parameters
-        ----------
-        `plot_params` : `dict`, optional
-            Plot parameters.
-        """
+    def plot_potential(self):
+        """Plot the potential over the atoms."""
         scaled = self.structure.get_scaled_positions()
         x, y = scaled[:, 0], scaled[:, 1]
-
         V = np.zeros(self.natoms)
         for ai in range(self.natoms):
             V[ai] = self[4][ai, ai]
-
-        _, ax = plt.subplots(**plot_params or {})
-        ax.scatter(x, y, c=V, cmap="rainbow", s=20)
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_title("On-site potential")
+        plt.scatter(x, y, c=V, cmap="rainbow", s=20)
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.title("On-site potential")
         plt.show()
 
     def plot_bands(
@@ -380,7 +354,7 @@ class TBHamiltonian:
 
         plt.xlim(distances[0], distances[-1])
         plt.xticks(tick_positions, path)
-        plt.ylim(-4.5, 4.5)
+        plt.ylim(np.min(bands), np.max(bands))
         plt.ylabel("Energy (eV)")
         plt.show()
 
