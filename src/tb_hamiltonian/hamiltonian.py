@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import typing as t
 from collections import OrderedDict
 from pathlib import Path
@@ -33,8 +34,6 @@ class TightBindingHamiltonian:
         self.natoms = len(structure)
         self.R = [np.array([i, j, 0]) for i in range(-1, 2) for j in range(-1, 2)]
         self.matrix = [lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
-        self.grid = self._get_search_grid()
-        self.ngx, self.ngy = len(self.grid[0]), len(self.grid)
         self._interaction_count_dict = OrderedDict.fromkeys(range(1, self.natoms + 1), 0)
 
         self.R_index_map: dict[tuple[int, int], int] = {
@@ -42,79 +41,12 @@ class TightBindingHamiltonian:
         }
 
     def build(self):
+        """Build the Hamiltonian matrix."""
+        self.grid = self._get_search_grid()
+        self.ngx, self.ngy = len(self.grid[0]), len(self.grid)
         for gy in range(self.ngy):
             for gx in range(self.ngx):
-                # consider only first nearest neighboring grid cells
-                for ny in range(-1, 2):
-                    for nx in range(-1, 2):
-                        # loop over atoms in the current grid cell
-                        for ai in self.grid[gy][gx]:
-                            # define local grid indices
-                            lgy = (gy + ny) % self.ngy  # wrap around cell
-                            lgx = (gx + nx) % self.ngx  # wrap around cell
-
-                            # loop over atoms in the neighboring grid cell
-                            for aj in self.grid[lgy][lgx]:
-                                # H is symmetric, so we compute
-                                # only the upper triangular matrix
-                                if ai < aj:
-                                    coords_i = self.structure.positions[ai]
-                                    coords_j = self.structure.positions[aj]
-
-                                    # used later to derive the R index of H
-                                    Rx, Ry = 0, 0
-
-                                    if nx != 0:
-                                        # handle boundary conditions in the x
-                                        coords_j, Rx = self._handle_PBC(
-                                            self.ngx,
-                                            gx,
-                                            nx,
-                                            Rx,
-                                            coords_j,
-                                            self.structure.cell.array[0],
-                                        )
-
-                                    if ny != 0:
-                                        # handle boundary conditions in the y
-                                        coords_j, Ry = self._handle_PBC(
-                                            self.ngy,
-                                            gy,
-                                            ny,
-                                            Ry,
-                                            coords_j,
-                                            self.structure.cell.array[1],
-                                        )
-
-                                    v = np.round(coords_i - coords_j, 3)  # displacement vector
-
-                                    # update H with hopping parameters
-                                    # if ai-aj distance is within threshold
-                                    d = np.round(np.abs(np.linalg.norm(v)), 3)
-                                    if d <= self.threshold:
-                                        # pick hopping parameter based on distance
-                                        for i, distance in enumerate(self.distances):
-                                            if d == distance:
-                                                hp = self.hopping_parameters[i]
-                                                break
-
-                                        Ri = self.R_index_map[(Rx, Ry)]
-                                        self[Ri][ai, aj] = hp
-
-                                        Ri = self.R_index_map[(-Rx, -Ry)]
-                                        self[Ri][aj, ai] = hp
-
-                                        self._interaction_count_dict[ai + 1] += 1
-                                        self._interaction_count_dict[aj + 1] += 1
-
-                                    # update H with interlayer coupling
-                                    if v[0] == 0 and v[1] == 0 and v[2] != 0:
-                                        Ri = self.R_index_map[(0, 0)]
-                                        self[Ri][ai, aj] = self[Ri][aj, ai] = (
-                                            self.interlayer_coupling
-                                        )
-                                        self._interaction_count_dict[ai + 1] += 1
-                                        self._interaction_count_dict[aj + 1] += 1
+                self._compute_coupling_for_grid_cell(gy, gx)
 
     def update_onsite_terms(
         self,
@@ -215,6 +147,8 @@ class TightBindingHamiltonian:
 
     def plot_grid(self):
         """Plot the search grid."""
+        if not self.grid:
+            return "Grid not yet generated. Run the `build` method first."
 
         _, ax = plt.subplots()
         ax.set_aspect("equal")
@@ -298,6 +232,143 @@ class TightBindingHamiltonian:
 
         return grid
 
+    def _compute_coupling_for_grid_cell(self, gy: int, gx: int):
+        """Compute coupling parameters for a grid cell.
+
+        Parameters
+        ----------
+        `gy` : `int`
+            Index of the grid cell in the y direction.
+        `gx` : `int`
+            Index of the grid cell in the x direction.
+        """
+        for ny, nx in itertools.product(range(-1, 2), range(-1, 2)):
+            lgy = (gy + ny) % self.ngy
+            lgx = (gx + nx) % self.ngx
+            self._compute_coupling_with_nearest_grid_cells(gy, gx, ny, nx, lgy, lgx)
+
+    def _compute_coupling_with_nearest_grid_cells(
+        self,
+        gy: int,
+        gx: int,
+        ny: int,
+        nx: int,
+        lgy: int,
+        lgx: int,
+    ):
+        """Compute coupling between atoms in a grid cell and its nearest neighbors.
+
+        Parameters
+        ----------
+        `gy` : `int`
+            Index of the grid cell in the y direction.
+        `gx` : `int`
+            Index of the grid cell in the x direction.
+        `ny` : `int`
+            Neighboring grid cell shift in the y direction.
+        `nx` : `int`
+            Neighboring grid cell shift in the x direction.
+        `lgy` : `int`
+            Index of the neighboring grid cell in the y direction,
+            cycled w.r.t cell boundaries.
+        `lgx` : `int`
+            Index of the neighboring grid cell in the x direction,
+            cycled w.r.t cell boundaries.
+        """
+        for ai in self.grid[gy][gx]:
+            for aj in self.grid[lgy][lgx]:
+                if ai < aj:
+                    self._compute_coupling_with_nearest_neighbors(ai, aj, gy, gx, ny, nx)
+
+    def _compute_coupling_with_nearest_neighbors(
+        self,
+        ai: int,
+        aj: int,
+        gy: int,
+        gx: int,
+        ny: int,
+        nx: int,
+    ):
+        """Compute the hopping parameter between two atoms.
+
+        Parameters
+        ----------
+        `ai` : `int`
+            Index of atom i.
+        `aj` : `int`
+            Index of atom j.
+        `gy` : `int`
+            Index of the grid cell in the y direction.
+        `gx` : `int`
+            Index of the grid cell in the x direction.
+        `ny` : `int`
+            Neighboring grid cell shift in the y direction.
+        `nx` : `int`
+            Neighboring grid cell shift in the x direction.
+        """
+        coords_i = self.structure.positions[ai]
+        coords_j, Rx, Ry = self._apply_boundary_conditions(aj, gy, gx, ny, nx)
+
+        displacement = np.round(coords_i - coords_j, 3)
+        distance = np.round(np.abs(np.linalg.norm(displacement)), 3)
+
+        if distance <= self.threshold:
+            hp = self._get_hopping_parameter(distance)
+            Ri = self.R_index_map[(Rx, Ry)]
+            self[Ri][ai, aj] = hp
+            Ri = self.R_index_map[(-Rx, -Ry)]
+            self[Ri][aj, ai] = hp
+            self._interaction_count_dict[ai + 1] += 1
+            self._interaction_count_dict[aj + 1] += 1
+
+        if displacement[0] == 0 and displacement[1] == 0 and displacement[2] != 0:
+            Ri = self.R_index_map[(0, 0)]
+            self[Ri][ai, aj] = self[Ri][aj, ai] = self.interlayer_coupling
+            self._interaction_count_dict[ai + 1] += 1
+            self._interaction_count_dict[aj + 1] += 1
+
+    def _apply_boundary_conditions(self, aj: int, gy: int, gx: int, ny: int, nx: int):
+        """Apply periodic boundary conditions to the atom coordinates.
+
+        Parameters
+        ----------
+        `aj` : `int`
+            Index of atom j.
+        `gy` : `int`
+            Index of the grid cell in the y direction.
+        `gx` : `int`
+            Index of the grid cell in the x direction.
+        `ny` : `int`
+            Neighboring grid cell shift in the y direction.
+        `nx` : `int`
+            Neighboring grid cell shift in the x direction.
+        """
+        coords_j = self.structure.positions[aj]
+
+        Rx, Ry = 0, 0
+
+        # handle boundary conditions in the x
+        coords_j, Rx = self._handle_PBC(
+            self.ngx,
+            gx,
+            nx,
+            Rx,
+            coords_j,
+            self.structure.cell.array[0],
+        )
+
+        # handle boundary conditions in the y
+        coords_j, Ry = self._handle_PBC(
+            self.ngy,
+            gy,
+            ny,
+            Ry,
+            coords_j,
+            self.structure.cell.array[1],
+        )
+
+        return coords_j, Rx, Ry
+
     def _handle_PBC(
         self,
         ng: int,
@@ -330,13 +401,32 @@ class TightBindingHamiltonian:
         `tuple[np.ndarray, int]`
             adjusted coordinates of atom j and R vector component
         """
-        if g == 0 and g + n < g and (g + n) % ng == ng - 1:
-            R -= 1
-            coords_j = coords_j - v
-        elif g == ng - 1 and g + n > g and (g + n) % ng == 0:
-            R += 1
-            coords_j = coords_j + v
+        if n != 0:
+            if g == 0 and g + n < g and (g + n) % ng == ng - 1:
+                R -= 1
+                coords_j = coords_j - v
+            elif g == ng - 1 and g + n > g and (g + n) % ng == 0:
+                R += 1
+                coords_j = coords_j + v
         return coords_j, R
+
+    def _get_hopping_parameter(self, distance: float) -> float:
+        """Get the hopping parameter corresponding to the nearest neighbor distance.
+
+        Parameters
+        ----------
+        `distance` : `float`
+            distance between two atoms
+
+        Returns
+        -------
+        `float`
+            hopping parameter corresponding to the distance
+        """
+        return next(
+            (self.hopping_parameters[i] for i, d in enumerate(self.distances) if distance == d),
+            0.0,
+        )
 
     def __getitem__(self, key: int) -> lil_matrix:
         return self.matrix[key]
