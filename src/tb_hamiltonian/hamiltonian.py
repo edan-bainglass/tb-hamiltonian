@@ -228,6 +228,8 @@ class TightBindingHamiltonian:
             x, y, _ = atom.position
             gx = int(x / gxs)
             gy = int(y / gys)
+            gx = ngx - 1 if gx == ngx else gx
+            gy = ngy - 1 if gy == ngy else gy
             grid[gy][gx].append(ai)
 
         return grid
