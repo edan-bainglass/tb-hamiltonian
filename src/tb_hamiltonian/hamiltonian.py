@@ -132,6 +132,51 @@ class TBHamiltonian:
         H_k.build(consider_atomic_positions)
         return H_k
 
+    def get_band_structure(
+        self,
+        k_points: np.ndarray,
+        use_sparse_solver=False,
+        sparse_solver_params: dict | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute the band structure.
+
+        Parameters
+        ----------
+        `k_points` : `np.ndarray`
+            List of k-points.
+        `use_sparse_solver` : `bool`, optional
+            Whether to use the sparse solver.
+        `sparse_solver_params` : `dict`, optional
+            Parameters for the sparse solver.
+
+        Returns
+        -------
+        `tuple[np.ndarray, np.ndarray]`
+            Distances and band structure.
+        """
+        from multiprocessing import Pool, cpu_count
+
+        if sparse_solver_params is None:
+            sparse_solver_params = {
+                "k": 10,
+                "sigma": 1e-3,
+                "maxiter": 1000,
+                "tol": 1e-6,
+            }
+
+        pool = Pool(cpu_count())
+        results = pool.map(self.get_kamiltonian, k_points)
+        pool.close()
+
+        band_structure = []
+        for H_k in results:
+            eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
+            band_structure.append(eigenvalues)
+
+        distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
+
+        return distances, np.array(band_structure)
+
     def write_to_file(
         self,
         path: Path = Path("output/example"),
@@ -289,6 +334,54 @@ class TBHamiltonian:
         ax.set_xlabel("x")
         ax.set_ylabel("y")
         ax.set_title("On-site potential")
+        plt.show()
+
+    def plot_bands(
+        self,
+        high_sym_points: dict[str, t.Sequence[float]],
+        k_path: str,
+        points_per_segment: int,
+        use_sparse_solver=False,
+        sparse_solver_params: dict | None = None,
+    ):
+        """Plot the band structure.
+
+        Parameters
+        ----------
+        `high_sym_points` : `dict[str, t.Sequence]`
+            Dictionary of high-symmetry points.
+        `k_path` : `str`
+            Path of the k-points.
+        `points_per_segment` : `int`
+            Number of points per segment.
+        `use_sparse_solver` : `bool`, optional
+            Whether to use the sparse solver.
+        `sparse_solver_params` : `dict`, optional
+            Parameters for the sparse solver.
+        """
+        path = k_path.split()
+        segments = np.array([high_sym_points[k] for k in path])
+        k_points = self._get_k_points(segments, points_per_segment)
+        distances, bands = self.get_band_structure(
+            k_points,
+            use_sparse_solver,
+            sparse_solver_params,
+        )
+
+        for band in bands.T:
+            plt.plot(distances, band)
+
+        tick_positions = np.cumsum(
+            np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
+        )
+
+        for x in tick_positions[1:-1]:
+            plt.axvline(x, c="k", ls="--", lw=0.5)
+
+        plt.xlim(distances[0], distances[-1])
+        plt.xticks(tick_positions, path)
+        plt.ylim(-4.5, 4.5)
+        plt.ylabel("Energy (eV)")
         plt.show()
 
     def _get_search_grid(self) -> list[list[list[int]]]:
@@ -544,6 +637,35 @@ class TBHamiltonian:
             (self.hopping_parameters[i] for i, d in enumerate(self.distances) if distance == d),
             0.0,
         )
+
+    def _get_k_points(
+        self,
+        segments: np.ndarray,
+        points_per_segment: int = 5,
+    ) -> np.ndarray:
+        """Generate k-points for the band structure calculation.
+
+        Parameters
+        ----------
+        `segments` : `np.ndarray`
+            List of high-symmetry points.
+        `points_per_segment` : `int`, optional
+            Number of points per segment.
+
+        Returns
+        -------
+        `np.ndarray`
+            List of k-points.
+        """
+        k_points = []
+        for i in range(len(segments) - 1):
+            start, end = segments[i], segments[(i + 1) % len(segments)]
+            kx = np.linspace(start[0], end[0], points_per_segment, endpoint=True)
+            ky = np.linspace(start[1], end[1], points_per_segment, endpoint=True)
+            kz = np.linspace(start[2], end[2], points_per_segment, endpoint=True)
+            points = np.array(list(zip(kx, ky, kz)))
+            k_points.append(points)
+        return np.concatenate(k_points)
 
     def __getitem__(self, i: int) -> sparse.lil_matrix:
         return self.matrix[i]
