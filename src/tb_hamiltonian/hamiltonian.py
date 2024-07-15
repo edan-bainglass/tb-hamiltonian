@@ -11,6 +11,8 @@ from ase import Atoms
 from matplotlib.patches import Rectangle
 from scipy import sparse
 
+from tb_hamiltonian.kamiltonian import TBKamiltonian
+
 from .potentials import PotentialFactory, PotentialFunction
 
 
@@ -106,6 +108,27 @@ class TBHamiltonian:
         """Return the number of interactions for each atom."""
         for atom, count in self._interaction_count_dict.items():
             print(f"Atom {atom} interacts with {count} other atoms.")
+
+    def get_kamiltonian(
+        self,
+        k: np.ndarray,
+        consider_atomic_positions=False,
+    ) -> TBKamiltonian:
+        """Compute the k-space Hamiltonian.
+
+        Parameters
+        ----------
+        `k` : `np.ndarray`
+            k-vector in the reciprocal space.
+
+        Returns
+        -------
+        `TBKamiltonian`
+            k-space Hamiltonian.
+        """
+        H_k = TBKamiltonian(self, k)
+        H_k.build(consider_atomic_positions)
+        return H_k
 
     def write_to_file(
         self,
