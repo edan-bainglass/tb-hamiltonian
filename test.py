@@ -94,5 +94,5 @@ H.plot_bands(
     use_sparse_solver=False,
     sparse_solver_params={"k": H.natoms - 2, "sigma": 1e-8},
     use_mpi=use_mpi,
-    savefig_path=path / "bands.png",
+    workdir=path,
 )
