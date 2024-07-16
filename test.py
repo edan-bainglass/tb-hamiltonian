@@ -8,6 +8,9 @@ from tb_hamiltonian.utils import get_structure
 
 sys.tracebacklimit = None
 
+debug = False
+use_mpi = False
+
 nn = 1  # number of nearest neighbors | don't use 0!
 
 workdir = Path("examples/BLG/AB/rectangular")
@@ -46,6 +49,7 @@ H = TBHamiltonian(
     distances=(0.0, 1.425, 2.468, 2.850),
     hopping_parameters=(0.0, -2.7, 0.0, -0.27),
     interlayer_coupling=0.33,
+    debug=debug,
 )
 
 H.build()
@@ -73,7 +77,7 @@ path.mkdir(parents=True, exist_ok=True)
 
 # Write H to file
 
-H.write_to_file(path)
+H.write_to_file(path, use_mpi=use_mpi)
 
 # Plotting
 
@@ -89,6 +93,6 @@ H.plot_bands(
     points_per_segment=20,
     use_sparse_solver=False,
     sparse_solver_params={"k": H.natoms - 2, "sigma": 1e-8},
-    use_mpi=False,
+    use_mpi=use_mpi,
     savefig_path=path / "bands.png",
 )

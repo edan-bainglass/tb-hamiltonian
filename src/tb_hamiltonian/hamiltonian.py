@@ -196,6 +196,7 @@ class TBHamiltonian:
         self,
         path: Path = Path("output/example"),
         filename: str = "TG_hr.dat",
+        use_mpi=False,
     ) -> None:
         """Write the Hamiltonian to a file.
 
@@ -205,9 +206,25 @@ class TBHamiltonian:
             Path to the directory where the Hamiltonian will be written.
         `filename` : `str`, optional
             Name of the file where the Hamiltonian will be written.
+        `use_mpi` : `bool`, optional
+            Whether to use the MPI parallelization.
         """
         non_zero_elements = sum(H.count_nonzero() for H in self)
         system_label = self.structure.info.get("label", self.structure.symbols)
+
+        if use_mpi:
+            from mpi4py import MPI
+
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+        else:
+            rank = 0
+
+        if rank != 0:
+            return
+
+        if self.debug:
+            print("writing Hamiltonian to file...")
 
         with (path / filename).open("w") as file:
             # write banner
