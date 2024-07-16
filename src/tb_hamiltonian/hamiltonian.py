@@ -27,6 +27,7 @@ class TBHamiltonian:
         distances: list[float],
         hopping_parameters: list[float],
         interlayer_coupling: float,
+        debug=False,
     ):
         """`TBHamiltonian` constructor.
 
@@ -42,7 +43,10 @@ class TBHamiltonian:
             List of hopping parameters corresponding to the distances.
         `interlayer_coupling` : `float`
             Interlayer coupling parameter.
+        `debug` : `bool`, optional
+            Whether to print debug information.
         """
+        self.debug = debug
         self.structure = structure
         self.threshold = distances[nearest_neighbor]
         self.distances = distances
@@ -168,15 +172,18 @@ class TBHamiltonian:
 
         if use_mpi:
             if importlib.util.find_spec("mpi4py") is None:
-                print("mpi4py is not installed. ", end="")
+                if self.debug:
+                    print("mpi4py is not installed. ", end="")
             else:
-                print("Using MPI parallelization")
+                if self.debug:
+                    print("Using MPI parallelization")
                 return self._get_band_structure_mpi(
                     k_points,
                     use_sparse_solver,
                     sparse_solver_params,
                 )
-        print("Using multiprocessing parallelization")
+        if self.debug:
+            print("Using multiprocessing parallelization")
         return self._get_band_structure_multiprocessing(
             k_points,
             use_sparse_solver,
@@ -244,7 +251,8 @@ class TBHamiltonian:
             [str(i) for i in np.arange(start, end, step) + 1],
         )
         plt.colorbar()
-        plt.show()
+        if self.debug:
+            plt.show()
 
     def plot_grid(self, show_ticks=False, show_labels=False):
         """Plot the search grid.
@@ -301,7 +309,8 @@ class TBHamiltonian:
                 if show_labels:
                     ax.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
 
-        plt.show()
+        if self.debug:
+            plt.show()
 
     def plot_potential(self):
         """Plot the potential over the atoms."""
@@ -314,7 +323,8 @@ class TBHamiltonian:
         plt.xlabel("x")
         plt.ylabel("y")
         plt.title("On-site potential")
-        plt.show()
+        if self.debug:
+            plt.show()
 
     def plot_bands(
         self,
@@ -368,7 +378,8 @@ class TBHamiltonian:
         plt.ylim(np.min(bands), np.max(bands))
         plt.ylabel("Energy (eV)")
         plt.savefig(savefig_path)
-        plt.show()
+        if self.debug:
+            plt.show()
 
     def _get_search_grid(self) -> list[list[list[int]]]:
         """Create a search grid for a given structure.
