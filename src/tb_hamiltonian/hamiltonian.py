@@ -225,7 +225,15 @@ class TBHamiltonian:
                     Rx, Ry, Rz = r
                     file.write(f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n")
 
-    def plot_matrix(self, R_index=4, start=0, end=-1, step=1):
+    def plot_matrix(
+        self,
+        R_index=4,
+        start=0,
+        end=-1,
+        step=1,
+        plot_params: dict | None = None,
+        fig_params: dict | None = None,
+    ):
         """Plot the Hamiltonian matrix.
 
         Parameters
@@ -238,10 +246,22 @@ class TBHamiltonian:
             End index of the plot.
         `step` : `int`, optional
             Step size for the ticks.
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        `fig_params` : `dict`, optional
+            Figure parameters.
         """
         Hr = self[R_index].toarray()
         end = self.natoms if end < start else end
-        plt.imshow(Hr[start:end, start:end], cmap="inferno", interpolation="nearest")
+
+        if fig_params is None:
+            fig_params = {"figsize": (6, 4)}
+
+        if plot_params is None:
+            plot_params = {"cmap": "inferno", "interpolation": "nearest"}
+
+        plt.figure(figsize=fig_params.pop("figsize"))
+        plt.imshow(Hr[start:end, start:end], **plot_params)
         plt.xticks(
             np.arange(0, end - start, step),
             [str(i) for i in np.arange(start, end, step) + 1],
@@ -251,10 +271,16 @@ class TBHamiltonian:
             [str(i) for i in np.arange(start, end, step) + 1],
         )
         plt.colorbar()
+
         if self.debug:
             plt.show()
 
-    def plot_grid(self, show_ticks=False, show_labels=False):
+    def plot_grid(
+        self,
+        show_ticks=False,
+        show_labels=False,
+        fig_params: dict | None = None,
+    ):
         """Plot the search grid.
 
         Parameters
@@ -263,19 +289,23 @@ class TBHamiltonian:
             Whether to show the grid ticks.
         `show_labels` : `bool`, optional
             Whether to show the atom labels.
+        `fig_params` : `dict`, optional
+            Figure parameters.
         """
         if not self.grid:
             return "Grid not yet generated. Run the `build` method first."
 
-        _, ax = plt.subplots()
-        ax.set_aspect("equal")
+        if fig_params is None:
+            fig_params = {"figsize": (6, 4)}
+
+        plt.figure(figsize=fig_params.pop("figsize"))
 
         gxs = self.structure.cell.lengths()[0] / self.ngx
         gys = self.structure.cell.lengths()[1] / self.ngy
 
         for gy in range(self.ngy):
             for gx in range(self.ngx):
-                ax.add_patch(
+                plt.gca().add_patch(
                     Rectangle(
                         (gx * gxs, gy * gys),
                         gxs,
@@ -286,43 +316,64 @@ class TBHamiltonian:
                     )
                 )
 
-        ax.set_xlim(0, self.structure.cell.lengths()[0])
-        ax.set_ylim(0, self.structure.cell.lengths()[1])
+        plt.xlim(0, self.structure.cell.lengths()[0])
+        plt.ylim(0, self.structure.cell.lengths()[1])
 
         if show_ticks:
-            ax.set_xticks(np.arange(0, self.structure.cell.lengths()[0], gxs))
-            ax.set_yticks(np.arange(0, self.structure.cell.lengths()[1], gys))
+            plt.xticks(np.arange(0, self.structure.cell.lengths()[0], gxs))
+            plt.yticks(np.arange(0, self.structure.cell.lengths()[1], gys))
         else:
-            ax.set_xticks([])
-            ax.set_yticks([])
+            plt.xticks([])
+            plt.yticks([])
 
         inter_layer_height = 0.5 * self.structure.cell.lengths()[2]
 
         for atom in self.structure:
             x, y, z = atom.position
             if z < inter_layer_height:
-                ax.plot(x, y, "o", color="blue")
+                plt.plot(x, y, "o", color="blue")
                 if show_labels:
-                    ax.text(x, y - 0.1, atom.index, fontsize=12, ha="center", va="center")
+                    plt.text(x, y - 0.1, atom.index, fontsize=12, ha="center", va="center")
             else:
-                ax.plot(x + 0.05, y, "o", color="red")
+                plt.plot(x + 0.05, y, "o", color="red")
                 if show_labels:
-                    ax.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
+                    plt.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
 
         if self.debug:
             plt.show()
 
-    def plot_potential(self):
-        """Plot the potential over the atoms."""
+    def plot_potential(
+        self,
+        plot_params: dict | None = None,
+        fig_params: dict | None = None,
+    ):
+        """Plot the potential over the atoms.
+
+        Parameters
+        ----------
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        `fig_params` : `dict`, optional
+            Figure parameters.
+        """
         scaled = self.structure.get_scaled_positions()
         x, y = scaled[:, 0], scaled[:, 1]
         V = np.zeros(self.natoms)
         for ai in range(self.natoms):
             V[ai] = self[4][ai, ai]
-        plt.scatter(x, y, c=V, cmap="rainbow", s=20)
+
+        if fig_params is None:
+            fig_params = {"figsize": (6, 4)}
+
+        if plot_params is None:
+            plot_params = {"cmap": "rainbow", "s": 20}
+
+        plt.figure(figsize=fig_params.pop("figsize"))
+        plt.scatter(x, y, c=V, **plot_params)
         plt.xlabel("x")
         plt.ylabel("y")
         plt.title("On-site potential")
+
         if self.debug:
             plt.show()
 
@@ -335,6 +386,9 @@ class TBHamiltonian:
         sparse_solver_params: dict | None = None,
         use_mpi=False,
         savefig_path="bands.png",
+        mode="line",
+        plot_params: dict | None = None,
+        fig_params: dict | None = None,
     ):
         """Plot the band structure.
 
@@ -352,6 +406,14 @@ class TBHamiltonian:
             Parameters for the sparse solver.
         `use_mpi` : `bool`, optional
             Whether to use the MPI parallelization.
+        `savefig_path` : `str`, optional
+            Path to save the figure.
+        `mode` : `str`, optional
+            Plotting mode: "line" or "scatter".
+        `plot_params` : `dict`, optional
+            Plot parameters.
+        `fig_params` : `dict`, optional
+            Figure parameters.
         """
         path = k_path.split()
         segments = np.array([high_sym_points[k] for k in path])
@@ -363,8 +425,24 @@ class TBHamiltonian:
             use_mpi,
         )
 
+        if fig_params is None:
+            fig_params = {
+                "figsize": (8, 6),
+                "ylim": (np.min(bands), np.max(bands)),
+            }
+
+        if plot_params is None:
+            plot_params = {}
+
+        plt.figure(figsize=fig_params.pop("figsize"))
+
         for band in bands.T:
-            plt.plot(distances, band)
+            if mode == "line":
+                plt.plot(distances, band, **plot_params)
+            elif mode == "scatter":
+                plt.scatter(distances, band, **plot_params)
+            else:
+                raise ValueError("Invalid mode. Choose 'line' or 'scatter'.")
 
         tick_positions = np.cumsum(
             np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
@@ -373,11 +451,15 @@ class TBHamiltonian:
         for x in tick_positions[1:-1]:
             plt.axvline(x, c="k", ls="--", lw=0.5)
 
+        ax = plt.gca()
+        ax.set(**fig_params)
+
         plt.xlim(distances[0], distances[-1])
         plt.xticks(tick_positions, path)
-        plt.ylim(np.min(bands), np.max(bands))
+
         plt.ylabel("Energy (eV)")
         plt.savefig(savefig_path)
+
         if self.debug:
             plt.show()
 
