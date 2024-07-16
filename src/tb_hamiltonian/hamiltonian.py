@@ -424,7 +424,8 @@ class TBHamiltonian:
         use_sparse_solver=False,
         sparse_solver_params: dict | None = None,
         use_mpi=False,
-        savefig_path="bands.png",
+        workdir=Path("."),
+        fig_filename="bands.png",
         mode="line",
         plot_params: dict | None = None,
         fig_params: dict | None = None,
@@ -445,8 +446,10 @@ class TBHamiltonian:
             Parameters for the sparse solver.
         `use_mpi` : `bool`, optional
             Whether to use the MPI parallelization.
-        `savefig_path` : `str`, optional
-            Path to save the figure.
+        `workdir` : `str`, optional
+            Path to save files and figure.
+        `fig_filename` : `str`, optional
+            Name to use when saving figure.
         `mode` : `str`, optional
             Plotting mode: "line" or "scatter".
         `plot_params` : `dict`, optional
@@ -463,6 +466,20 @@ class TBHamiltonian:
             sparse_solver_params,
             use_mpi,
         )
+
+        if use_mpi:
+            from mpi4py import MPI
+
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+        else:
+            rank = 0
+
+        if rank != 0:
+            return
+
+        np.save(workdir / "distances.npy", distances)
+        np.save(workdir / "bands.npy", bands)
 
         if fig_params is None:
             fig_params = {
@@ -500,7 +517,7 @@ class TBHamiltonian:
         plt.xticks(tick_positions, path)
 
         plt.ylabel("Energy (eV)")
-        plt.savefig(savefig_path)
+        plt.savefig(workdir / fig_filename)
 
         if self.debug:
             plt.show()
