@@ -270,6 +270,9 @@ class TBHamiltonian:
         if fig_params is None:
             fig_params = {"figsize": (6, 4)}
 
+        if "figsize" not in fig_params:
+            fig_params["figsize"] = (6, 4)
+
         if plot_params is None:
             plot_params = {"cmap": "inferno", "interpolation": "nearest"}
 
@@ -310,6 +313,9 @@ class TBHamiltonian:
 
         if fig_params is None:
             fig_params = {"figsize": (6, 4)}
+
+        if "figsize" not in fig_params:
+            fig_params["figsize"] = (6, 4)
 
         plt.figure(figsize=fig_params.pop("figsize"))
 
@@ -378,6 +384,9 @@ class TBHamiltonian:
         if fig_params is None:
             fig_params = {"figsize": (6, 4)}
 
+        if "figsize" not in fig_params:
+            fig_params["figsize"] = (6, 4)
+
         if plot_params is None:
             plot_params = {"cmap": "rainbow", "s": 20}
 
@@ -443,6 +452,9 @@ class TBHamiltonian:
                 "figsize": (8, 6),
                 "ylim": (np.min(bands), np.max(bands)),
             }
+
+        if "figsize" not in fig_params:
+            fig_params["figsize"] = (8, 6)
 
         if plot_params is None:
             plot_params = {}
