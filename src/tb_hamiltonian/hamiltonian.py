@@ -4,6 +4,7 @@ import importlib.util
 import itertools
 import typing as t
 from collections import OrderedDict
+from copy import deepcopy
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -48,6 +49,7 @@ class TBHamiltonian:
         """
         self.debug = debug
         self.structure = structure
+        self.nearest_neighbor = nearest_neighbor
         self.threshold = distances[nearest_neighbor]
         self.distances = distances
         self.hopping_parameters = hopping_parameters
@@ -224,6 +226,17 @@ class TBHamiltonian:
                 for ai, aj, v in zip(Hcoo.row, Hcoo.col, Hcoo.data):
                     Rx, Ry, Rz = r
                     file.write(f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n")
+
+    def copy(self) -> TBHamiltonian:
+        H = TBHamiltonian(
+            structure=self.structure,
+            nearest_neighbor=self.nearest_neighbor,
+            distances=self.distances,
+            hopping_parameters=self.hopping_parameters,
+            interlayer_coupling=self.interlayer_coupling,
+        )
+        H.matrix = deepcopy(H.matrix)
+        return H
 
     def plot_matrix(
         self,
