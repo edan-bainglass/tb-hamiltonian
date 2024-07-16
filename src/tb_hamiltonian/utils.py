@@ -9,11 +9,11 @@ from ase.io import read
 
 
 def get_structure(
-    unit_cell_filepath: Path = Path("."),
+    unit_cell_filepath: Path | None = None,
     unit_cell_file_format: str = "vasp",
     repetitions: t.Tuple[int, int, int] | None = None,
     lengths: t.Tuple[float, float, float] | None = None,
-    structure_filepath: Path = Path("."),
+    structure_filepath: Path | None = None,
     structure_file_format: str = "vasp",
 ) -> Atoms:
     """Create a sorted structure object.
@@ -49,11 +49,11 @@ def get_structure(
         if repetitions is not None:
             nx, ny, nz = repetitions
             structure = unit_cell.repeat((nx, ny, nz))  # type: ignore
-            return sort_atoms(structure)
+            return sort_atoms(structure)  # type: ignore
         elif lengths is not None:
             nx, ny, nz = lengths // unit_cell.cell.lengths()  # type: ignore
             structure = unit_cell.repeat([int(i) for i in (nx, ny, nz)])  # type: ignore
-            return sort_atoms(structure)
+            return sort_atoms(structure)  # type: ignore
         else:
             return sort_atoms(unit_cell)  # type: ignore
     elif structure_filepath:
@@ -63,7 +63,7 @@ def get_structure(
         except Exception as err:
             raise err
     else:
-        raise ValueError("Either `unit_cell` or `structure_filepath` must be provided.")
+        raise ValueError("Either `unit_cell_filepath` or `structure_filepath` must be provided.")
 
 
 def sort_atoms(atoms):
