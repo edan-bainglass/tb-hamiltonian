@@ -3,7 +3,9 @@ from __future__ import annotations
 import typing as t
 
 import numpy as np
-from scipy import sparse
+from numpy.linalg import eigvalsh as numpy_solver
+from scipy.sparse import lil_matrix
+from scipy.sparse.linalg import eigsh as scipy_sparse_solver
 
 if t.TYPE_CHECKING:
     from tb_hamiltonian.hamiltonian import TBHamiltonian
@@ -24,7 +26,7 @@ class TBKamiltonian:
         """
         self.H = H
         self.k = k
-        self.matrix = sparse.lil_matrix((H.natoms, H.natoms), dtype=complex)
+        self.matrix = lil_matrix((H.natoms, H.natoms), dtype=complex)
 
     def build(self, consider_atomic_positions=False):
         """Build the k-space Hamiltonian.
@@ -55,6 +57,12 @@ class TBKamiltonian:
     ) -> np.ndarray:
         """Get the eigenvalues of the k-space Hamiltonian.
 
+        If `use_sparse_solver` is `True`, the eigenvalues are computed using
+        `scipy.sparse.linalg.eigsh`. Otherwise, the eigenvalues are computed
+        using `numpy.linalg.eigvalsh`. Note that the `scipy` solver may yield
+        spurious eigenvalues (spikes) in the band structure, particularly near
+        high-symmetry k-points. See the `scipy` documentation for more details.
+
         Parameters
         ----------
         `use_sparse_solver` : `bool`, optional
@@ -69,11 +77,11 @@ class TBKamiltonian:
             The eigenvalues of the k-space Hamiltonian.
         """
         if use_sparse_solver:
-            eigenvalues = sparse.linalg.eigsh(
+            eigenvalues = scipy_sparse_solver(
                 self.matrix,
                 return_eigenvectors=False,
                 **sparse_solver_params or {},
             )
         else:
-            eigenvalues = np.linalg.eigvalsh(self.matrix.toarray()).real
+            eigenvalues = numpy_solver(self.matrix.toarray()).real
         return np.sort(eigenvalues.real)

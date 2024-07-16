@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from matplotlib.patches import Rectangle
-from scipy import sparse
+from scipy.sparse import lil_matrix
 
 from tb_hamiltonian.kamiltonian import TBKamiltonian
 
@@ -54,7 +54,7 @@ class TBHamiltonian:
         self.interlayer_coupling = interlayer_coupling
         self.natoms = len(structure)
         self.R = [np.array([i, j, 0]) for i in range(-1, 2) for j in range(-1, 2)]
-        self.matrix = [sparse.lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
+        self.matrix = [lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
         self._interaction_count_dict = OrderedDict.fromkeys(range(1, self.natoms + 1), 0)
 
         self.R_index_map: dict[tuple[int, int], int] = {
@@ -829,10 +829,10 @@ class TBHamiltonian:
 
         return distances, np.array(band_structure)
 
-    def __getitem__(self, i: int) -> sparse.lil_matrix:
+    def __getitem__(self, i: int) -> lil_matrix:
         return self.matrix[i]
 
-    def __iter__(self) -> t.Iterator[sparse.lil_matrix]:
+    def __iter__(self) -> t.Iterator[lil_matrix]:
         return iter(self.matrix)
 
     def __str__(self) -> str:
