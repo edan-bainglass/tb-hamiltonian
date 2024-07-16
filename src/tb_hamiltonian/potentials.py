@@ -67,7 +67,7 @@ class KronigPenneyBreakEvenSymPotential(PotentialFunction):
 
     def apply(self, coordinates: np.ndarray) -> float:
         amplitude = self.params.get("amplitude", 1.0)
-        width = self.params.get("width", 1.0)
+        width = self.params.get("width", 0.5)
         beta = self.params.get("beta", 0.1)
         start1 = self.params.get("start1", 0.25)
         end1 = self.params.get("end1", 0.5)
@@ -93,7 +93,7 @@ class KronigPenneyBreakOddSymPotential(PotentialFunction):
 
     def apply(self, coordinates: np.ndarray) -> float:
         amplitude = self.params.get("amplitude", 1.0)
-        width = self.params.get("width", 1.0)
+        width = self.params.get("width", 0.5)
         beta = self.params.get("beta", 0.1)
         start = self.params.get("start1", 0.125)
         end = self.params.get("end1", 0.375)
