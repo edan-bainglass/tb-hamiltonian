@@ -48,7 +48,8 @@ class TBKamiltonian:
                     exp_k_D = np.exp(2j * np.pi * self.k.dot(Δij))
                     self.matrix[i, j] += Hr[i, j] * exp_k_R * exp_k_D
             else:
-                self.matrix += Hr * exp_k_R
+                # += would expand the sparse matrix and may exceed memory
+                self.matrix = self.matrix + Hr * exp_k_R
 
     def get_eigenvalues(
         self,
