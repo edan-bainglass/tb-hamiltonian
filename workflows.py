@@ -97,3 +97,58 @@ def sweep_cell_sizes(
             )
         )
     return wg
+
+
+@task.graph_builder()
+def sweep_potential_strength(
+    structure_label: str,
+    paths: dict,
+    repetitions: list,
+    distances: list,
+    nearest_neighbor: int,
+    hopping_parameters: list,
+    interlayer_coupling: float,
+    potential_type: str,
+    potential_params: dict,
+    onsite_term: float,
+    alpha: list,
+    band_params: dict,
+) -> WorkGraph:
+    wg = WorkGraph("sweep_potential_strength")
+    wg.add_task(
+        calculations.define_structure,
+        name="define_structure",
+        paths=paths,
+        repetitions=repetitions,
+        structure_label=structure_label,
+    )
+    wg.add_task(
+        calculations.build_hamiltonian,
+        name="build_hamiltonian",
+        structure=wg.tasks["define_structure"].outputs["result"],
+        workdir=paths["output_path"],
+        distances=distances,
+        nearest_neighbor=nearest_neighbor,
+        hopping_parameters=hopping_parameters,
+        interlater_coupling=interlayer_coupling,
+    )
+    for amplitude in potential_params["amplitudes"]:
+        label = str(amplitude).replace(".", "_")
+        wg.add_task(
+            calculations.apply_onsite_term,
+            name=f"apply_onsite_term_{label}",
+            H_file=wg.tasks["build_hamiltonian"].outputs["result"],
+            potential_type=potential_type,
+            potential_params={"amplitude": amplitude},
+            workdir=paths["output_path"],
+            onsite_term=onsite_term,
+            alpha=alpha,
+        )
+        wg.add_task(
+            calculations.get_band_structure,
+            name=f"get_band_structure_{label}",
+            H_file=wg.tasks[f"apply_onsite_term_{label}"].outputs["H_file"],
+            workdir=wg.tasks[f"apply_onsite_term_{label}"].outputs["workdir"],
+            band_params=band_params,
+        )
+    return wg
