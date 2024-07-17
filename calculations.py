@@ -12,12 +12,13 @@ from tb_hamiltonian.utils import get_structure
 def define_structure(
     paths: dict,
     repetitions: list = None,
+    structure_label: str = "",
 ) -> orm.StructureData:
     structure = get_structure(
         Path(paths["input_path"]) / "POSCAR",
         repetitions=repetitions or [1, 1, 1],
     )
-    structure.info["label"] = "BLG"
+    structure.info["label"] = structure_label
     structure.write(Path(paths["output_path"]).parent / "POSCAR", format="vasp")
     return orm.StructureData(ase=structure)
 

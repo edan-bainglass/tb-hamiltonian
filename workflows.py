@@ -7,6 +7,7 @@ import calculations
 
 @task.graph_builder()
 def compute_bands(
+    structure_label: str,
     paths: dict,
     repetitions: list,
     distances: list,
@@ -25,6 +26,7 @@ def compute_bands(
         name="define_structure",
         paths=paths,
         repetitions=repetitions,
+        structure_label=structure_label,
     )
     wg.add_task(
         calculations.build_hamiltonian,
@@ -58,6 +60,7 @@ def compute_bands(
 
 @task.graph_builder()
 def sweep_cell_sizes(
+    structure_label: str,
     input_path: Path,
     distances: list,
     nearest_neighbor: int,
@@ -76,6 +79,7 @@ def sweep_cell_sizes(
         workdir.mkdir(parents=True, exist_ok=True)
         wg.add_task(
             compute_bands(
+                structure_label,
                 {
                     "input_path": input_path.as_posix(),
                     "output_path": workdir.as_posix(),
