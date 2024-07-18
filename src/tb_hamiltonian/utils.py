@@ -52,7 +52,7 @@ def get_structure(
             return sort_atoms(structure)  # type: ignore
         elif lengths is not None:
             nx, ny, nz = lengths // unit_cell.cell.lengths()  # type: ignore
-            structure = unit_cell.repeat([int(i) for i in (nx, ny, nz)])  # type: ignore
+            structure = unit_cell.repeat([int(i) or 1 for i in (nx, ny, nz)])  # type: ignore
             return sort_atoms(structure)  # type: ignore
         else:
             return sort_atoms(unit_cell)  # type: ignore
