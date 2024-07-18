@@ -93,6 +93,7 @@ class TBHamiltonian:
             If the length of `alpha` is not equal to the number of layers.
         """
         layer_heights = np.unique(self.structure.positions[:, 2])
+        alpha = [1.0] * len(layer_heights) if alpha is None else alpha
         if not isinstance(alpha, t.Sequence) or len(alpha) != len(layer_heights):
             raise ValueError(
                 f"`alpha` must be a sequence of length equal to the number of layers ({len(layer_heights)})"
