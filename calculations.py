@@ -68,9 +68,12 @@ def apply_onsite_term(
     H_onsite = H.copy()
     potential = PotentialFactory(potential_type.value)
     potential.params = potential_params
-    H_onsite.update_onsite_terms(onsite_term.value, potential, alpha.get_list() or [1.0])
+    if alpha is not None:
+        alpha = alpha.get_list()
+    H_onsite.update_onsite_terms(onsite_term.value, potential, alpha)
     path = Path(workdir.value)
-    path /= f"onsite_{onsite_term.value}"
+    if onsite_term.value:
+        path /= f"onsite_{onsite_term.value}"
     path /= potential_type.value
     if potential_type != "null":
         path /= f"amplitude_{potential_params['amplitude']}"
