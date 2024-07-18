@@ -545,10 +545,8 @@ class TBHamiltonian:
         a, b, _ = self.structure.cell.lengths()
 
         # calculate the number of grid squares in each dimension
-        ngx = int(np.ceil(a / self.threshold)) - 1
-        ngy = int(np.ceil(b / self.threshold)) - 1
-        ngx = 1 if ngx == 0 else ngx
-        ngy = 1 if ngy == 0 else ngy
+        ngx = max(int(np.floor(a / self.threshold)) - 1, 1)
+        ngy = max(int(np.floor(b / self.threshold)) - 1, 1)
 
         # calculate adjusted grid cell size in each dimension to perfectly fit the cell
         gxs = a / ngx  # grid cell size in x
