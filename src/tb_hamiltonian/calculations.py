@@ -3,6 +3,7 @@ from pathlib import Path
 
 from aiida import orm
 from aiida_workgraph import task
+
 from tb_hamiltonian.hamiltonian import TBHamiltonian
 from tb_hamiltonian.potentials import PotentialFactory
 from tb_hamiltonian.utils import get_structure
