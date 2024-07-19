@@ -2,7 +2,8 @@ from pathlib import Path
 
 from aiida_workgraph import WorkGraph, task
 
-import calculations
+from tb_hamiltonian import calculations
+from tb_hamiltonian.utils import zipped
 
 
 @task.graph_builder()
@@ -179,38 +180,3 @@ def sweep_onsite_parameters(
         )
 
     return wg
-
-
-def zipped(params: dict):
-    from itertools import product
-
-    for onsite_term, potential_type, alpha in product(
-        params.get("onsite_term", [0.0]) or [0.0],
-        params.get("potential_type", ["null"]) or ["null"],
-        params.get("alpha", [[1.0]]) or [[1.0]],
-    ):
-        base_params = {
-            "onsite_term": onsite_term,
-            "potential_type": potential_type,
-            "alpha": alpha,
-        }
-        if potential_type == "null":
-            yield base_params
-        elif potential_type in ("kronig-penney", "sine"):
-            for amplitude in params["potential_params"].get("amplitude", []):
-                yield {
-                    **base_params,
-                    "amplitude": amplitude,
-                }
-        elif potential_type in ("triangular", "rectangular"):
-            for amplitude, width, height in product(
-                params["potential_params"].get("amplitude", []),
-                params["potential_params"].get("width", [0.5]) or [0.5],
-                params["potential_params"].get("height", [0.0]) or [0.0],
-            ):
-                yield {
-                    **base_params,
-                    "amplitude": amplitude,
-                    "width": width,
-                    "height": height or 2 * width,
-                }
