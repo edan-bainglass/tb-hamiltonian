@@ -18,8 +18,8 @@ def PotentialFactory(type: str) -> PotentialFunction:
         return KronigPenneyBreakOddSymPotential()
     elif type == "triangular":
         return TriangularPotential()
-    elif type == "square":
-        return SquarePotential()
+    elif type == "rectangular":
+        return RectangularPotential()
     else:
         raise ValueError(f"Unknown potential form: {type}")
 
@@ -123,30 +123,29 @@ class SinePotential(PotentialFunction):
 
 class TriangularPotential(PotentialFunction):
     name = "triangular"
-    form = "V(x, y) = V_0 * [cos(kx1*x) + cos(kx1/2*x + ky1*y) + cos(kx1/2*x - ky1*y)]"
+    form = "V(x, y) = V_0 * [cos(Q1*r) + cos(Q2*r) + cos(Q3*r) + cos(Q4*r) + cos(Q5*r) + cos(Q6*r)]"
+
+    def apply(self, coordinates: np.ndarray) -> float:
+        amplitude = self.params.get("amplitude", 1.0)
+        Q0 = self.params.get("Q0", 1)
+        r = coordinates[:2]
+
+        def Q(n):
+            arg = 2 * np.pi * n / 6
+            return Q0 * np.array([np.cos(arg), np.sin(arg)])
+
+        return amplitude * sum(np.cos(Q(n) @ r) for n in range(1, 7))
+
+
+class RectangularPotential(PotentialFunction):
+    name = "rectangular"
+    form = "V(x, y) = V_0 * [sin(kx*x)^2 + sin(ky*y)^2]"
 
     def apply(self, coordinates: np.ndarray) -> float:
         amplitude = self.params.get("amplitude", 1.0)
         width = self.params.get("width", 1.0)
-        height = self.params.get("height", 2 * width)
-        n = self.params.get("n", 1)
-        m = self.params.get("m", 1)
+        height = self.params.get("height", width)
         x, y, _ = coordinates
-        kx1 = 2 * np.pi * n / width
-        ky1 = 2 * np.pi * m / height
-
-        return amplitude * (
-            np.cos(kx1 * x) + np.cos(kx1 / 2 * x + ky1 * y) + np.cos(kx1 / 2 * x - ky1 * y)
-        )
-
-
-class SquarePotential(PotentialFunction):
-    name = "square"
-    form = "V(x, y) = V_0 * [sin(k*x)^2 + sin(k*y)^2]"
-
-    def apply(self, coordinates: np.ndarray) -> float:
-        amplitude = self.params.get("amplitude", 1.0)
-        width = self.params.get("width", 1.0)
-        x, y, _ = coordinates
-        k = 2 * np.pi / width
-        return amplitude * (np.sin(k * x) ** 2 + np.sin(k * y) ** 2)
+        kx = 2 * np.pi / width
+        ky = 2 * np.pi / height
+        return amplitude * (np.sin(kx * x) ** 2 + np.sin(ky * y) ** 2)
