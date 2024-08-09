@@ -194,7 +194,7 @@ class TBHamiltonian:
 
     def write_to_file(
         self,
-        path: Path = Path("output/example"),
+        path: Path = Path("."),
         filename: str = "TG_hr.dat",
         use_mpi=False,
     ) -> None:
