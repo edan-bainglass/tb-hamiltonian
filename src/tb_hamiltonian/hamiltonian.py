@@ -460,7 +460,7 @@ class TBHamiltonian:
         path = k_path.split()
         segments = np.array([high_sym_points[k] for k in path])
         k_points = self._get_k_points(segments, points_per_segment)
-        distances, bands = self.get_band_structure(
+        distances, eigenvalues = self.get_band_structure(
             k_points,
             use_sparse_solver,
             sparse_solver_params,
@@ -479,12 +479,12 @@ class TBHamiltonian:
             return
 
         np.save(outdir / "distances.npy", distances)
-        np.save(outdir / "bands.npy", bands)
+        np.save(outdir / "eigenvalues.npy", eigenvalues)
 
         if fig_params is None:
             fig_params = {
                 "figsize": (8, 6),
-                "ylim": (np.min(bands), np.max(bands)),
+                "ylim": (np.min(eigenvalues), np.max(eigenvalues)),
             }
 
         if "figsize" not in fig_params:
@@ -495,11 +495,11 @@ class TBHamiltonian:
 
         plt.figure(figsize=fig_params.pop("figsize"))
 
-        for band in bands.T:
+        for eigen_col in eigenvalues.T:
             if mode == "line":
-                plt.plot(distances, band, **plot_params)
+                plt.plot(distances, eigen_col, **plot_params)
             elif mode == "scatter":
-                plt.scatter(distances, band, **plot_params)
+                plt.scatter(distances, eigen_col, **plot_params)
             else:
                 raise ValueError("Invalid mode. Choose 'line' or 'scatter'.")
 
