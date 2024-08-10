@@ -1,6 +1,5 @@
-from pathlib import Path
-
 from aiida_workgraph import WorkGraph, task
+from ase import Atoms
 
 from tb_hamiltonian import calculations
 from tb_hamiltonian.utils import zipped
@@ -9,7 +8,7 @@ from tb_hamiltonian.utils import zipped
 @task.graph_builder()
 def compute_bands(
     structure_label: str,
-    paths: dict,
+    initial_structure: Atoms,
     repetitions: list,
     distances: list,
     nearest_neighbor: int,
@@ -20,41 +19,50 @@ def compute_bands(
     onsite_term: float,
     alpha: list,
     band_params: dict,
+    computer: str = "localhost",
+    metadata: dict | None = None,
+    suffix: str = "",
 ) -> WorkGraph:
-    wg = WorkGraph("BLG_bands")
+    suffix = f"_{suffix}" if suffix else ""
+    wg = WorkGraph(f"Bands{suffix}")
     wg.add_task(
         calculations.define_structure,
-        name="define_structure",
-        paths=paths,
+        name=f"define_structure{suffix}",
+        initial_structure=initial_structure,
         repetitions=repetitions,
         structure_label=structure_label,
+        computer=computer,
+        metadata=metadata or {},
     )
     wg.add_task(
         calculations.build_hamiltonian,
-        name="build_hamiltonian",
-        structure=wg.tasks["define_structure"].outputs["result"],
-        workdir=paths["output_path"],
+        name=f"build_hamiltonian{suffix}",
+        structure=wg.tasks[f"define_structure{suffix}"].outputs["result"],
         distances=distances,
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
-        interlater_coupling=interlayer_coupling,
+        interlayer_coupling=interlayer_coupling,
+        computer=computer,
+        metadata=metadata or {},
     )
     wg.add_task(
         calculations.apply_onsite_term,
-        name="apply_onsite_term",
-        H_file=wg.tasks["build_hamiltonian"].outputs["result"],
+        name=f"apply_onsite_term{suffix}",
+        H=wg.tasks[f"build_hamiltonian{suffix}"].outputs["result"],
         potential_type=potential_type,
         potential_params=potential_params,
-        workdir=paths["output_path"],
         onsite_term=onsite_term,
         alpha=alpha,
+        computer=computer,
+        metadata=metadata or {},
     )
     wg.add_task(
         calculations.get_band_structure,
-        name="get_band_structure",
-        H_file=wg.tasks["apply_onsite_term"].outputs["H_file"],
-        workdir=wg.tasks["apply_onsite_term"].outputs["workdir"],
+        name=f"get_band_structure{suffix}",
+        H=wg.tasks[f"apply_onsite_term{suffix}"].outputs["result"],
         band_params=band_params,
+        computer=computer,
+        metadata=metadata or {},
     )
     return wg
 
@@ -62,7 +70,7 @@ def compute_bands(
 @task.graph_builder()
 def sweep_cell_sizes(
     structure_label: str,
-    input_path: Path,
+    initial_structure: Atoms,
     distances: list,
     nearest_neighbor: int,
     hopping_parameters: list,
@@ -73,18 +81,16 @@ def sweep_cell_sizes(
     alpha: list,
     band_params: dict,
     sizes: list,
+    computer: str = "localhost",
+    metadata: dict | None = None,
 ) -> WorkGraph:
-    wg = WorkGraph("sweep_cell_size")
+    wg = WorkGraph("BandsCellSizeSweep")
     for n in sizes:
-        workdir = input_path / f"rep_{n}x{n}/nn_{nearest_neighbor}"
-        workdir.mkdir(parents=True, exist_ok=True)
+        suffix = f"{n}x{n}"
         wg.add_task(
             compute_bands(
                 structure_label,
-                {
-                    "input_path": input_path.as_posix(),
-                    "output_path": workdir.as_posix(),
-                },
+                initial_structure,
                 [n, n, 1],
                 distances,
                 nearest_neighbor,
@@ -95,7 +101,11 @@ def sweep_cell_sizes(
                 onsite_term,
                 alpha,
                 band_params,
-            )
+                computer,
+                metadata,
+                suffix=suffix,
+            ),
+            name=f"Bands_{suffix}",
         )
     return wg
 
@@ -103,7 +113,7 @@ def sweep_cell_sizes(
 @task.graph_builder()
 def sweep_onsite_parameters(
     structure_label: str,
-    paths: dict,
+    initial_structure: Atoms,
     repetitions: list,
     distances: list,
     nearest_neighbor: int,
@@ -111,32 +121,36 @@ def sweep_onsite_parameters(
     interlayer_coupling: float,
     sweep_params: dict,
     band_params: dict,
+    computer: str = "localhost",
+    metadata: dict | None = None,
 ) -> WorkGraph:
-    wg = WorkGraph("sweep_onsite_parameters")
+    wg = WorkGraph("BandsOnsiteParameterSweep")
 
     wg.add_task(
         calculations.define_structure,
         name="define_structure",
-        paths=paths,
+        initial_structure=initial_structure,
         repetitions=repetitions,
         structure_label=structure_label,
+        computer=computer,
+        metadata=metadata,
     )
 
     wg.add_task(
         calculations.build_hamiltonian,
         name="build_hamiltonian",
         structure=wg.tasks["define_structure"].outputs["result"],
-        workdir=paths["output_path"],
         distances=distances,
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
-        interlater_coupling=interlayer_coupling,
+        interlayer_coupling=interlayer_coupling,
+        computer=computer,
+        metadata=metadata,
     )
 
     for params in zipped(sweep_params):
         task_params = {
-            "H_file": wg.tasks["build_hamiltonian"].outputs["result"],
-            "workdir": paths["output_path"],
+            "H": wg.tasks["build_hamiltonian"].outputs["result"],
             "potential_type": params.get("potential_type", "null"),
             "potential_params": {},
         }
@@ -169,14 +183,17 @@ def sweep_onsite_parameters(
             calculations.apply_onsite_term,
             name=f"apply_onsite_term_{label}",
             **task_params,
+            computer=computer,
+            metadata=metadata,
         )
 
         wg.add_task(
             calculations.get_band_structure,
             name=f"get_band_structure_{label}",
-            H_file=wg.tasks[f"apply_onsite_term_{label}"].outputs["H_file"],
-            workdir=wg.tasks[f"apply_onsite_term_{label}"].outputs["workdir"],
+            H=wg.tasks[f"apply_onsite_term_{label}"].outputs["result"],
             band_params=band_params,
+            computer=computer,
+            metadata=metadata,
         )
 
     return wg

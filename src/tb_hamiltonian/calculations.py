@@ -1,107 +1,89 @@
-import pickle
-from pathlib import Path
-
-from aiida import orm
 from aiida_workgraph import task
+from ase import Atoms
 
 from tb_hamiltonian.hamiltonian import TBHamiltonian
-from tb_hamiltonian.potentials import PotentialFactory
-from tb_hamiltonian.utils import get_structure
 
 
-@task.calcfunction()
+@task.pythonjob()
 def define_structure(
-    paths: dict,
+    initial_structure: Atoms,
     repetitions: list = None,
     structure_label: str = "",
-) -> orm.StructureData:
+) -> Atoms:
+    from tb_hamiltonian.utils import get_structure
+
     structure = get_structure(
-        Path(paths["input_path"]) / "POSCAR",
+        initial_structure,
         repetitions=repetitions or [1, 1, 1],
     )
     structure.info["label"] = structure_label
-    structure.write(Path(paths["output_path"]).parent / "POSCAR", format="vasp")
-    return orm.StructureData(ase=structure)
+    structure.write("POSCAR", format="vasp")
+    return structure
 
 
-@task.calcfunction()
+@task.pythonjob()
 def build_hamiltonian(
-    structure: orm.StructureData,
-    workdir: str,
-    nearest_neighbor: int = 1,
+    structure: Atoms,
     distances: list = None,
+    nearest_neighbor: int = 1,
     hopping_parameters: list = None,
-    interlater_coupling: float = 0.0,
+    interlayer_coupling: float = 0.0,
     use_mpi: bool = False,
-) -> orm.SinglefileData:
+) -> TBHamiltonian:
+    from tb_hamiltonian.hamiltonian import TBHamiltonian
+
     H = TBHamiltonian(
-        structure=structure.get_ase(),
-        nearest_neighbor=nearest_neighbor.value,
-        distances=distances.get_list() or [0.0],
-        hopping_parameters=hopping_parameters.get_list() or [0.0],
-        interlayer_coupling=interlater_coupling.value,
+        structure=structure,
+        nearest_neighbor=nearest_neighbor,
+        distances=distances or [0.0],
+        hopping_parameters=hopping_parameters or [0.0],
+        interlayer_coupling=interlayer_coupling,
     )
     H.build()
-    H.write_to_file(Path(workdir.value), use_mpi=use_mpi.value)
-    path = Path(workdir.value) / "H.pkl"
-    with path.open(mode="wb") as file:
-        pickle.dump(H, file)
-    return orm.SinglefileData(path.absolute())
+    H.write_to_file(use_mpi=use_mpi)
+    return H
 
 
-@task.calcfunction(
-    outputs=[
-        {"name": "H_file"},
-        {"name": "workdir"},
-    ]
-)
+@task.pythonjob()
 def apply_onsite_term(
-    H_file: orm.SinglefileData,
+    H: TBHamiltonian,
     potential_type: str,
     potential_params: dict,
-    workdir: str,
     onsite_term: float = 0.0,
     alpha: list = None,
     use_mpi: bool = False,
-) -> dict:
-    with H_file.open(mode="rb") as file:
-        H: TBHamiltonian = pickle.load(file)
-    H_onsite = H.copy()
-    potential = PotentialFactory(potential_type.value)
+) -> TBHamiltonian:
+    from tb_hamiltonian.potentials import PotentialFactory
+
+    onsite_H = H.copy()
+    potential = PotentialFactory(potential_type)
     potential.params = potential_params
-    if alpha is not None:
-        alpha = alpha.get_list()
-    H_onsite.update_onsite_terms(onsite_term.value, potential, alpha)
-    path = Path(workdir.value)
-    if onsite_term.value:
-        path /= f"onsite_{onsite_term.value}"
-    path /= potential_type.value
-    if potential_type != "null":
-        path /= f"amplitude_{potential_params['amplitude']}"
-        if "width" in potential_params:
-            path /= f"width_{potential_params['width']}"
-        if "height" in potential_params:
-            path /= f"height_{potential_params['height']}"
-    path.mkdir(parents=True, exist_ok=True)
-    H_onsite.write_to_file(path, use_mpi=use_mpi)
-    pickle_path = path / "H.pkl"
-    with pickle_path.open(mode="wb") as file:
-        pickle.dump(H_onsite, file)
-    return {
-        "H_file": orm.SinglefileData(pickle_path.absolute()),
-        "workdir": orm.Str(path.absolute().as_posix()),
-    }
+    onsite_H.update_onsite_terms(onsite_term, potential, alpha)
+    onsite_H.write_to_file(use_mpi=use_mpi)
+    return onsite_H
 
 
-@task.calcfunction()
+@task.pythonjob(
+    outputs=[
+        {"name": "distances"},
+        {"name": "eigenvalues"},
+        {"name": "fig"},
+    ],
+)
 def get_band_structure(
-    H_file: orm.SinglefileData,
-    workdir: str,
+    H: TBHamiltonian,
     band_params: dict,
-) -> orm.SinglefileData:
-    with H_file.open(mode="rb") as file:
-        H: TBHamiltonian = pickle.load(file)
-    workdir_path = Path(workdir.value)
-    filepath: Path = workdir_path / band_params.get("fig_filename", "bands.png")
-    H.plot_bands(**{"workdir": workdir_path, **band_params.get_dict()})
-    return orm.SinglefileData(filepath.absolute())
+) -> dict:
+    import numpy as np
+    from PIL import Image
+
+    H.plot_bands(**band_params)
+    distances = np.load("distances.npy")
+    eigenvalues = np.load("eigenvalues.npy")
+    fig = Image.open(band_params.get("fig_filename", "bands.png"))
+
+    return {
+        "distances": distances,
+        "eigenvalues": eigenvalues,
+        "fig": fig,
+    }

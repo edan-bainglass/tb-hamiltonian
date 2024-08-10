@@ -9,8 +9,7 @@ from ase.io import read
 
 
 def get_structure(
-    unit_cell_filepath: Path | None = None,
-    unit_cell_file_format: str = "vasp",
+    initial_structure: Atoms,
     repetitions: t.Tuple[int, int, int] | None = None,
     lengths: t.Tuple[float, float, float] | None = None,
     structure_filepath: Path | None = None,
@@ -25,10 +24,8 @@ def get_structure(
 
     Parameters
     ----------
-    `unit_cell_filepath` : `Path`, optional
-        Path to the unit cell file.
-    `unit_cell_file_format` : `str`, optional
-        File format of the unit cell file.
+    `initial_structure` : `ase.Atoms`
+        Initial structure object.
     `repetitions` : `tuple[int, int, int]`, optional
         Number of repetitions in the x, y, z directions.
     `lengths` : `tuple[float, float, float]`, optional
@@ -44,18 +41,17 @@ def get_structure(
         Structure as `ase.Atoms` object with atoms sorted
         by x, y, and z, in order.
     """
-    if unit_cell_filepath:
-        unit_cell = read(unit_cell_filepath, format=unit_cell_file_format)
+    if initial_structure:
         if repetitions is not None:
             nx, ny, nz = repetitions
-            structure = unit_cell.repeat((nx, ny, nz))  # type: ignore
+            structure = initial_structure.repeat((nx, ny, nz))  # type: ignore
             return sort_atoms(structure)  # type: ignore
         elif lengths is not None:
-            nx, ny, nz = lengths // unit_cell.cell.lengths()  # type: ignore
-            structure = unit_cell.repeat([int(i) or 1 for i in (nx, ny, nz)])  # type: ignore
+            nx, ny, nz = lengths // initial_structure.cell.lengths()  # type: ignore
+            structure = initial_structure.repeat([int(i) or 1 for i in (nx, ny, nz)])  # type: ignore
             return sort_atoms(structure)  # type: ignore
         else:
-            return sort_atoms(unit_cell)  # type: ignore
+            return sort_atoms(initial_structure)  # type: ignore
     elif structure_filepath:
         try:
             structure = read(structure_filepath, format=structure_file_format)
