@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing as t
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from ase.io import read
@@ -59,7 +60,9 @@ def get_structure(
         except Exception as err:
             raise err
     else:
-        raise ValueError("Either `unit_cell_filepath` or `structure_filepath` must be provided.")
+        raise ValueError(
+            "Either `unit_cell_filepath` or `structure_filepath` must be provided."
+        )
 
 
 def sort_atoms(atoms):
@@ -119,3 +122,129 @@ def zipped(params: dict):
                     "width": width,
                     "height": height or 2 * width,
                 }
+
+
+def generate_k_points(
+    segments: np.ndarray,
+    points_per_segment: int = 5,
+) -> np.ndarray:
+    """Generate k-points for the band structure calculation.
+
+    Parameters
+    ----------
+    `segments` : `np.ndarray`
+        List of high-symmetry points.
+    `points_per_segment` : `int`, optional
+        Number of points per segment.
+
+    Returns
+    -------
+    `np.ndarray`
+        List of k-points.
+    """
+    k_points = []
+    for i in range(len(segments) - 1):
+        start, end = segments[i], segments[(i + 1) % len(segments)]
+        kx = np.linspace(start[0], end[0], points_per_segment, endpoint=True)
+        ky = np.linspace(start[1], end[1], points_per_segment, endpoint=True)
+        kz = np.linspace(start[2], end[2], points_per_segment, endpoint=True)
+        points = np.array(list(zip(kx, ky, kz)))
+        k_points.append(points)
+    return np.concatenate(k_points)
+
+
+class BandStructure:
+    """Band structure utility class.
+
+    Attributes
+    ----------
+    `high_sym_points` : `dict[str, t.Sequence[float]]`
+        High symmetry points in the Brillouin zone.
+    `path` : `str | t.Sequence[str]`
+        K-point path through the Brillouin zone.
+    `distances` : `np.ndarray`
+        K-point distances.
+    `eigenvalues` : `np.ndarray`
+        Eigenvalues of the band structure.
+    """
+
+    def __init__(
+        self,
+        high_sym_points: dict[str, t.Sequence[float]],
+        path: str | t.Sequence[str],
+        distances: np.ndarray,
+        eigenvalues: np.ndarray,
+    ):
+        """`BandStructure` constructor."""
+        self.path = path.split() if isinstance(path, str) else path
+        self.high_sym_points = high_sym_points
+        self.distances = distances
+        self.eigenvalues = eigenvalues
+
+    def plot(
+        self,
+        title="Band Structure",
+        mode: t.Literal["line", "scatter"] = "line",
+        plot_params: dict | None = None,
+        fig_params: dict | None = None,
+    ) -> plt.Axes:
+        """Plot the band structure.
+
+        Parameters
+        ----------
+        `mode` : `str`, optional
+            Plotting mode. Choose from 'line' or 'scatter'.
+        `plot_params` : `dict`, optional
+            Plotting parameters.
+        `fig_params` : `dict`, optional
+            Figure parameters.
+
+        Returns
+        -------
+        `plt.Axes`
+            Band structure plot axes object.
+        """
+        segments = np.array([self.high_sym_points[k] for k in self.path])
+
+        if fig_params is None:
+            fig_params = {
+                "figsize": (8, 6),
+                "ylim": (np.min(self.eigenvalues), np.max(self.eigenvalues)),
+            }
+
+        if "figsize" not in fig_params:
+            fig_params["figsize"] = (8, 6)
+
+        if plot_params is None:
+            plot_params = {}
+
+        _, ax = plt.subplots(figsize=fig_params.pop("figsize"))
+
+        for eigen_col in self.eigenvalues.T:
+            if mode == "line":
+                ax.plot(self.distances, eigen_col, **plot_params)
+            elif mode == "scatter":
+                ax.scatter(self.distances, eigen_col, **plot_params)
+            else:
+                raise ValueError("Invalid mode. Choose 'line' or 'scatter'.")
+
+        tick_positions = np.cumsum(
+            np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
+        )
+
+        for x in tick_positions[1:-1]:
+            ax.axvline(x, c="k", ls="--", lw=0.5)
+
+        ax.set(
+            title=title,
+            xlim=(self.distances[0], self.distances[-1]),
+            xticks=tick_positions,
+            xticklabels=self.path,
+            ylabel="Energy (eV)",
+            **fig_params,
+        )
+
+        return ax
+
+    def __repr__(self):
+        return f"""BandStructure({' -> '.join(self.path)})"""

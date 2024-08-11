@@ -13,6 +13,7 @@ from matplotlib.patches import Rectangle
 from scipy.sparse import lil_matrix
 
 from tb_hamiltonian.kamiltonian import TBKamiltonian
+from tb_hamiltonian.utils import BandStructure, generate_k_points
 
 from .potentials import PotentialFactory, PotentialFunction
 
@@ -54,9 +55,16 @@ class TBHamiltonian:
         self.hopping_parameters = hopping_parameters
         self.interlayer_coupling = interlayer_coupling
         self.natoms = len(structure)
+
         self.R = [np.array([i, j, 0]) for i in range(-1, 2) for j in range(-1, 2)]
-        self.matrix = [lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))]
-        self._interaction_count_dict = OrderedDict.fromkeys(range(1, self.natoms + 1), 0)
+
+        self.matrix = [
+            lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))
+        ]
+
+        self._interaction_count_dict = OrderedDict.fromkeys(
+            range(1, self.natoms + 1), 0
+        )
 
         self.R_index_map: dict[tuple[int, int], int] = {
             (int(Rx), int(Ry)): i for i, (Rx, Ry, _) in enumerate(self.R)
@@ -141,29 +149,44 @@ class TBHamiltonian:
 
     def get_band_structure(
         self,
-        k_points: np.ndarray,
+        high_sym_points: dict[str, t.Sequence[float]],
+        path: str,
+        points_per_segment: int,
         use_sparse_solver=False,
         sparse_solver_params: dict | None = None,
+        outdir: str | Path = Path("."),
+        save_data=False,
         use_mpi=False,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> BandStructure:
         """Compute the band structure.
 
         Parameters
         ----------
-        `k_points` : `np.ndarray`
-            List of k-points.
+        `high_sym_points` : `dict[str, t.Sequence]`
+            Dictionary of high-symmetry points.
+        `path` : `str`
+            Path of the k-points.
+        `points_per_segment` : `int`
+            Number of points per segment.
         `use_sparse_solver` : `bool`, optional
             Whether to use the sparse solver.
         `sparse_solver_params` : `dict`, optional
             Parameters for the sparse solver.
+        `outdir` : `str` | `Path`, optional
+            Path to save the band structure data.
+        `save_data` : `bool`, optional
+            Whether to save the band structure data.
         `use_mpi` : `bool`, optional
             Whether to use the MPI parallelization.
 
         Returns
         -------
-        `tuple[np.ndarray, np.ndarray]`
-            Distances and band structure.
+        `BandStructure`
+            Band structure object.
         """
+        segments = np.array([high_sym_points[k] for k in path.split()])
+        k_points = generate_k_points(segments, points_per_segment)
+
         if sparse_solver_params is None:
             sparse_solver_params = {
                 "k": 10,
@@ -179,22 +202,34 @@ class TBHamiltonian:
             else:
                 if self.debug:
                     print("Using MPI parallelization")
-                return self._get_band_structure_mpi(
+                distances, eigenvalues = self._get_band_structure_mpi(
                     k_points,
                     use_sparse_solver,
                     sparse_solver_params,
                 )
-        if self.debug:
-            print("Using multiprocessing parallelization")
-        return self._get_band_structure_multiprocessing(
-            k_points,
-            use_sparse_solver,
-            sparse_solver_params,
+        else:
+            if self.debug:
+                print("Using multiprocessing parallelization")
+            distances, eigenvalues = self._get_band_structure_multiprocessing(
+                k_points,
+                use_sparse_solver,
+                sparse_solver_params,
+            )
+
+        if save_data:
+            np.save(Path(outdir) / "distances.npy", distances)
+            np.save(Path(outdir) / "eigenvalues.npy", eigenvalues)
+
+        return BandStructure(
+            high_sym_points,
+            path,
+            distances,
+            eigenvalues,
         )
 
     def write_to_file(
         self,
-        path: Path = Path("."),
+        path: str | Path = Path("."),
         filename: str = "TG_hr.dat",
         use_mpi=False,
     ) -> None:
@@ -202,7 +237,7 @@ class TBHamiltonian:
 
         Parameters
         ----------
-        `path` : `Path`, optional
+        `path` : `str` | `Path`, optional
             Path to the directory where the Hamiltonian will be written.
         `filename` : `str`, optional
             Name of the file where the Hamiltonian will be written.
@@ -226,7 +261,7 @@ class TBHamiltonian:
         if self.debug:
             print("writing Hamiltonian to file...")
 
-        with (path / filename).open("w") as file:
+        with (Path(path) / filename).open("w") as file:
             # write banner
             for line in (
                 f"! Tight binding model for {system_label} system, theta=0\n",
@@ -242,7 +277,9 @@ class TBHamiltonian:
                 Hcoo = self[i].tocoo()
                 for ai, aj, v in zip(Hcoo.row, Hcoo.col, Hcoo.data):
                     Rx, Ry, Rz = r
-                    file.write(f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n")
+                    file.write(
+                        f"{Rx:5d}{Ry:5d}{Rz:5d}{ai + 1:8d}{aj + 1:8d}{v:13.6f}{0:13.6f}\n"
+                    )
 
     def copy(self) -> TBHamiltonian:
         copy = TBHamiltonian(
@@ -369,11 +406,15 @@ class TBHamiltonian:
             if z < inter_layer_height:
                 plt.plot(x, y, "o", color="blue")
                 if show_labels:
-                    plt.text(x, y - 0.1, atom.index, fontsize=12, ha="center", va="center")
+                    plt.text(
+                        x, y - 0.1, atom.index, fontsize=12, ha="center", va="center"
+                    )
             else:
                 plt.plot(x + 0.05, y, "o", color="red")
                 if show_labels:
-                    plt.text(x, y + 0.1, atom.index, fontsize=12, ha="center", va="center")
+                    plt.text(
+                        x, y + 0.1, atom.index, fontsize=12, ha="center", va="center"
+                    )
 
         if self.debug:
             plt.show()
@@ -418,55 +459,37 @@ class TBHamiltonian:
 
     def plot_bands(
         self,
-        high_sym_points: dict[str, t.Sequence[float]],
-        k_path: str,
-        points_per_segment: int,
-        use_sparse_solver=False,
-        sparse_solver_params: dict | None = None,
-        use_mpi=False,
-        outdir=Path("."),
-        fig_filename="bands.png",
-        mode="line",
+        band_structure: BandStructure,
+        title="Band Structure",
+        mode: t.Literal["line", "scatter"] = "line",
         plot_params: dict | None = None,
         fig_params: dict | None = None,
+        save_fig=False,
+        outdir: str | Path = Path("."),
+        fig_filename="bands.png",
+        use_mpi=False,
     ):
         """Plot the band structure.
 
         Parameters
         ----------
-        `high_sym_points` : `dict[str, t.Sequence]`
-            Dictionary of high-symmetry points.
-        `k_path` : `str`
-            Path of the k-points.
-        `points_per_segment` : `int`
-            Number of points per segment.
-        `use_sparse_solver` : `bool`, optional
-            Whether to use the sparse solver.
-        `sparse_solver_params` : `dict`, optional
-            Parameters for the sparse solver.
-        `use_mpi` : `bool`, optional
-            Whether to use the MPI parallelization.
-        `outdir` : `str`, optional
-            Path to save files and figure.
-        `fig_filename` : `str`, optional
-            Name to use when saving figure.
+        `band_structure` : `BandStructure`
+            Band structure object.
         `mode` : `str`, optional
             Plotting mode: "line" or "scatter".
         `plot_params` : `dict`, optional
             Plot parameters.
         `fig_params` : `dict`, optional
             Figure parameters.
+        `save_fig` : `bool`, optional
+            Whether to save the figure.
+        `outdir` : `str` | `Path`, optional
+            Path to save files and figure.
+        `fig_filename` : `str`, optional
+            Name to use when saving figure.
+        `use_mpi` : `bool`, optional
+            Whether to use the MPI parallelization.
         """
-        path = k_path.split()
-        segments = np.array([high_sym_points[k] for k in path])
-        k_points = self._get_k_points(segments, points_per_segment)
-        distances, eigenvalues = self.get_band_structure(
-            k_points,
-            use_sparse_solver,
-            sparse_solver_params,
-            use_mpi,
-        )
-
         if use_mpi:
             from mpi4py import MPI
 
@@ -478,46 +501,10 @@ class TBHamiltonian:
         if rank != 0:
             return
 
-        np.save(outdir / "distances.npy", distances)
-        np.save(outdir / "eigenvalues.npy", eigenvalues)
+        ax = band_structure.plot(title, mode, plot_params, fig_params)
 
-        if fig_params is None:
-            fig_params = {
-                "figsize": (8, 6),
-                "ylim": (np.min(eigenvalues), np.max(eigenvalues)),
-            }
-
-        if "figsize" not in fig_params:
-            fig_params["figsize"] = (8, 6)
-
-        if plot_params is None:
-            plot_params = {}
-
-        plt.figure(figsize=fig_params.pop("figsize"))
-
-        for eigen_col in eigenvalues.T:
-            if mode == "line":
-                plt.plot(distances, eigen_col, **plot_params)
-            elif mode == "scatter":
-                plt.scatter(distances, eigen_col, **plot_params)
-            else:
-                raise ValueError("Invalid mode. Choose 'line' or 'scatter'.")
-
-        tick_positions = np.cumsum(
-            np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
-        )
-
-        for x in tick_positions[1:-1]:
-            plt.axvline(x, c="k", ls="--", lw=0.5)
-
-        ax = plt.gca()
-        ax.set(**fig_params)
-
-        plt.xlim(distances[0], distances[-1])
-        plt.xticks(tick_positions, path)
-
-        plt.ylabel("Energy (eV)")
-        plt.savefig(outdir / fig_filename)
+        if save_fig:
+            ax.figure.savefig(Path(outdir) / fig_filename)
 
         if self.debug:
             plt.show()
@@ -579,9 +566,9 @@ class TBHamiltonian:
         for ny, nx in itertools.product(range(-1, 2), range(-1, 2)):
             lgy = (gy + ny) % self.ngy
             lgx = (gx + nx) % self.ngx
-            self._compute_coupling_with_nearest_grid_cells(gy, gx, ny, nx, lgy, lgx)
+            self._compute_coupling_with_nearest_grid_cell(gy, gx, ny, nx, lgy, lgx)
 
-    def _compute_coupling_with_nearest_grid_cells(
+    def _compute_coupling_with_nearest_grid_cell(
         self,
         gy: int,
         gx: int,
@@ -590,7 +577,7 @@ class TBHamiltonian:
         lgy: int,
         lgx: int,
     ):
-        """Compute coupling between atoms in a grid cell and its nearest neighbors.
+        """Compute coupling between atoms in a grid cell and a neighboring grid cell.
 
         Parameters
         ----------
@@ -612,7 +599,9 @@ class TBHamiltonian:
         for ai in self.grid[gy][gx]:
             for aj in self.grid[lgy][lgx]:
                 if ai < aj:
-                    self._compute_coupling_with_nearest_neighbors(ai, aj, gy, gx, ny, nx)
+                    self._compute_coupling_with_nearest_neighbors(
+                        ai, aj, gy, gx, ny, nx
+                    )
 
     def _compute_coupling_with_nearest_neighbors(
         self,
@@ -770,38 +759,13 @@ class TBHamiltonian:
             Hopping parameter corresponding to the distance.
         """
         return next(
-            (self.hopping_parameters[i] for i, d in enumerate(self.distances) if distance == d),
+            (
+                self.hopping_parameters[i]
+                for i, d in enumerate(self.distances)
+                if distance == d
+            ),
             0.0,
         )
-
-    def _get_k_points(
-        self,
-        segments: np.ndarray,
-        points_per_segment: int = 5,
-    ) -> np.ndarray:
-        """Generate k-points for the band structure calculation.
-
-        Parameters
-        ----------
-        `segments` : `np.ndarray`
-            List of high-symmetry points.
-        `points_per_segment` : `int`, optional
-            Number of points per segment.
-
-        Returns
-        -------
-        `np.ndarray`
-            List of k-points.
-        """
-        k_points = []
-        for i in range(len(segments) - 1):
-            start, end = segments[i], segments[(i + 1) % len(segments)]
-            kx = np.linspace(start[0], end[0], points_per_segment, endpoint=True)
-            ky = np.linspace(start[1], end[1], points_per_segment, endpoint=True)
-            kz = np.linspace(start[2], end[2], points_per_segment, endpoint=True)
-            points = np.array(list(zip(kx, ky, kz)))
-            k_points.append(points)
-        return np.concatenate(k_points)
 
     def _get_band_structure_mpi(
         self,
@@ -823,7 +787,7 @@ class TBHamiltonian:
         Returns
         -------
         `tuple[np.ndarray, np.ndarray]`
-            Distances and band structure.
+            Distances and eigenvalues.
         """
         from mpi4py import MPI
 
@@ -839,11 +803,15 @@ class TBHamiltonian:
             eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
             local_band_structure.append(eigenvalues)
 
-        all_band_structure = comm.gather(local_band_structure, root=0)
+        all_band_structure = comm.gather(local_band_structure, root=0) or []
 
         if rank == 0:
-            band_structure = [item for sublist in all_band_structure for item in sublist]  # type: ignore
-            distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
+            band_structure = [
+                item for sublist in all_band_structure for item in sublist
+            ]
+            distances = np.cumsum(
+                np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1)
+            )
             return distances, np.array(band_structure)
 
         return np.array([]), np.array([])
@@ -868,7 +836,7 @@ class TBHamiltonian:
         Returns
         -------
         `tuple[np.ndarray, np.ndarray]`
-            Distances and band structure.
+            Distances and eigenvalues.
         """
         from multiprocessing import Pool, cpu_count
 
@@ -882,7 +850,9 @@ class TBHamiltonian:
             eigenvalues = H_k.get_eigenvalues(use_sparse_solver, sparse_solver_params)
             band_structure.append(eigenvalues)
 
-        distances = np.cumsum(np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1))
+        distances = np.cumsum(
+            np.linalg.norm(np.diff(k_points, axis=0, prepend=0), axis=1)
+        )
 
         return distances, np.array(band_structure)
 
@@ -893,6 +863,4 @@ class TBHamiltonian:
         return iter(self.matrix)
 
     def __str__(self) -> str:
-        return (
-            f"TightBindingHamiltonian({self.structure.info.get('label', self.structure.symbols)})"
-        )
+        return f"TightBindingHamiltonian({self.structure.info.get('label', self.structure.symbols)})"

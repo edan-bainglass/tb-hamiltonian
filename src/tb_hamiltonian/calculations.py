@@ -2,6 +2,7 @@ from aiida_workgraph import task
 from ase import Atoms
 
 from tb_hamiltonian.hamiltonian import TBHamiltonian
+from tb_hamiltonian.utils import BandStructure
 
 
 @task.pythonjob()
@@ -63,27 +64,9 @@ def apply_onsite_term(
     return onsite_H
 
 
-@task.pythonjob(
-    outputs=[
-        {"name": "distances"},
-        {"name": "eigenvalues"},
-        {"name": "fig"},
-    ],
-)
+@task.pythonjob()
 def get_band_structure(
     H: TBHamiltonian,
     band_params: dict,
-) -> dict:
-    import numpy as np
-    from PIL import Image
-
-    H.plot_bands(**band_params)
-    distances = np.load("distances.npy")
-    eigenvalues = np.load("eigenvalues.npy")
-    fig = Image.open(band_params.get("fig_filename", "bands.png"))
-
-    return {
-        "distances": distances,
-        "eigenvalues": eigenvalues,
-        "fig": fig,
-    }
+) -> BandStructure:
+    return H.get_band_structure(**band_params)
