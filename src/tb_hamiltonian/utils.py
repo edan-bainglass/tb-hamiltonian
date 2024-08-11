@@ -166,6 +166,8 @@ class BandStructure:
         K-point distances.
     `eigenvalues` : `np.ndarray`
         Eigenvalues of the band structure.
+    `e_fermi` : `float`, optional
+        Fermi energy level, zero by default.
     """
 
     def __init__(
@@ -174,12 +176,37 @@ class BandStructure:
         path: str | t.Sequence[str],
         distances: np.ndarray,
         eigenvalues: np.ndarray,
+        e_fermi=0.0,
     ):
         """`BandStructure` constructor."""
         self.path = path.split() if isinstance(path, str) else path
         self.high_sym_points = high_sym_points
         self.distances = distances
         self.eigenvalues = eigenvalues
+        self.e_fermi = e_fermi
+
+    def get_band_edges(self) -> t.Tuple[float, float]:
+        """Get the band edges of the band structure.
+
+        Returns
+        -------
+        `tuple[float, float]`
+            Valence band maximum (VBM) and conduction band minimum (CBM).
+        """
+        CBM = np.min(self.eigenvalues[self.eigenvalues > self.e_fermi])
+        VBM = np.max(self.eigenvalues[self.eigenvalues <= self.e_fermi])
+        return VBM, CBM
+
+    def get_band_gap(self) -> float:
+        """Get the band gap of the band structure.
+
+        Returns
+        -------
+        `float`
+            Band gap energy.
+        """
+        VBM, CBM = self.get_band_edges()
+        return CBM - VBM
 
     def plot(
         self,
