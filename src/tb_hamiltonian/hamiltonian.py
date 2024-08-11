@@ -62,6 +62,8 @@ class TBHamiltonian:
             lil_matrix((self.natoms, self.natoms)) for _ in range(len(self.R))
         ]
 
+        self.onsite_term = 0.0
+
         self._interaction_count_dict = OrderedDict.fromkeys(
             range(1, self.natoms + 1), 0
         )
@@ -106,6 +108,7 @@ class TBHamiltonian:
             raise ValueError(
                 f"`alpha` must be a sequence of length equal to the number of layers ({len(layer_heights)})"
             )
+        self.onsite_term = onsite_term
         scaled_positions = self.structure.get_scaled_positions()
         for i in range(self.natoms):
             self[4][i, i] = onsite_term
@@ -225,6 +228,7 @@ class TBHamiltonian:
             path,
             distances,
             eigenvalues,
+            e_fermi=self.onsite_term,
         )
 
     def write_to_file(
