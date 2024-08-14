@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from aiida_workgraph import task
 from ase import Atoms
 

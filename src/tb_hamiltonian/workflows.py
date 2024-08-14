@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing as t
 
 from aiida_workgraph import WorkGraph, task
