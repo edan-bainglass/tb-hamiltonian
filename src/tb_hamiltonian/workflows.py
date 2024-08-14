@@ -19,21 +19,22 @@ def compute_bands(
     onsite_term: float,
     alpha: list,
     band_params: dict,
-    computer: str = "localhost",
     metadata: dict | None = None,
     suffix: str = "",
 ) -> WorkGraph:
     suffix = f"_{suffix}" if suffix else ""
     wg = WorkGraph(f"Bands{suffix}")
+    task_metadata: dict = metadata.get("define_structure", {})
     wg.add_task(
         calculations.define_structure,
         name=f"define_structure{suffix}",
         initial_structure=initial_structure,
         repetitions=repetitions,
         structure_label=structure_label,
-        computer=computer,
-        metadata=metadata or {},
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
+    task_metadata: dict = metadata.get("build_hamiltonian", {})
     wg.add_task(
         calculations.build_hamiltonian,
         name=f"build_hamiltonian{suffix}",
@@ -42,9 +43,10 @@ def compute_bands(
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
         interlayer_coupling=interlayer_coupling,
-        computer=computer,
-        metadata=metadata or {},
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
+    task_metadata: dict = metadata.get("apply_onsite_term", {})
     wg.add_task(
         calculations.apply_onsite_term,
         name=f"apply_onsite_term{suffix}",
@@ -53,16 +55,17 @@ def compute_bands(
         potential_params=potential_params,
         onsite_term=onsite_term,
         alpha=alpha,
-        computer=computer,
-        metadata=metadata or {},
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
+    task_metadata: dict = metadata.get("get_band_structure", {})
     wg.add_task(
         calculations.get_band_structure,
         name=f"get_band_structure{suffix}",
         H=wg.tasks[f"apply_onsite_term{suffix}"].outputs["result"],
         band_params=band_params,
-        computer=computer,
-        metadata=metadata or {},
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
     return wg
 
@@ -81,7 +84,6 @@ def sweep_cell_sizes(
     alpha: list,
     band_params: dict,
     sizes: list,
-    computer: str = "localhost",
     metadata: dict | None = None,
 ) -> WorkGraph:
     wg = WorkGraph("BandsCellSizeSweep")
@@ -101,7 +103,6 @@ def sweep_cell_sizes(
                 onsite_term,
                 alpha,
                 band_params,
-                computer,
                 metadata,
                 suffix=suffix,
             ),
@@ -121,21 +122,22 @@ def sweep_onsite_parameters(
     interlayer_coupling: float,
     sweep_params: dict,
     band_params: dict,
-    computer: str = "localhost",
     metadata: dict | None = None,
 ) -> WorkGraph:
     wg = WorkGraph("BandsOnsiteParameterSweep")
 
+    task_metadata: dict = metadata.get("define_structure", {})
     wg.add_task(
         calculations.define_structure,
         name="define_structure",
         initial_structure=initial_structure,
         repetitions=repetitions,
         structure_label=structure_label,
-        computer=computer,
-        metadata=metadata,
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
 
+    task_metadata: dict = metadata.get("build_hamiltonian", {})
     wg.add_task(
         calculations.build_hamiltonian,
         name="build_hamiltonian",
@@ -144,8 +146,8 @@ def sweep_onsite_parameters(
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
         interlayer_coupling=interlayer_coupling,
-        computer=computer,
-        metadata=metadata,
+        computer=task_metadata.get("computer", "localhost"),
+        metadata=task_metadata.get("metadata", {}),
     )
 
     for params in zipped(sweep_params):
@@ -179,21 +181,23 @@ def sweep_onsite_parameters(
 
         label = "_".join(label_parts).replace(".", "_").replace("-", "_")
 
+        task_metadata: dict = metadata.get("apply_onsite_term", {})
         wg.add_task(
             calculations.apply_onsite_term,
             name=f"apply_onsite_term_{label}",
             **task_params,
-            computer=computer,
-            metadata=metadata,
+            computer=task_metadata.get("computer", "localhost"),
+            metadata=task_metadata.get("metadata", {}),
         )
 
+        task_metadata: dict = metadata.get("get_band_structure", {})
         wg.add_task(
             calculations.get_band_structure,
             name=f"get_band_structure_{label}",
             H=wg.tasks[f"apply_onsite_term_{label}"].outputs["result"],
             band_params=band_params,
-            computer=computer,
-            metadata=metadata,
+            computer=task_metadata.get("computer", "localhost"),
+            metadata=task_metadata.get("metadata", {}),
         )
 
     return wg
