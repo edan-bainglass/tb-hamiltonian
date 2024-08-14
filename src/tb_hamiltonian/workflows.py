@@ -1,3 +1,5 @@
+import typing as t
+
 from aiida_workgraph import WorkGraph, task
 from ase import Atoms
 
@@ -87,13 +89,19 @@ def sweep_cell_sizes(
     metadata: dict | None = None,
 ) -> WorkGraph:
     wg = WorkGraph("BandsCellSizeSweep")
-    for n in sizes:
-        suffix = f"{n}x{n}"
+    for size in sizes:
+        if isinstance(size, t.Sequence):
+            nx, ny = size
+        elif isinstance(size, int):
+            nx = ny = size
+        else:
+            raise ValueError(f"Invalid size: {size}")
+        suffix = f"{nx}x{ny}"
         wg.add_task(
             compute_bands(
                 structure_label,
                 initial_structure,
-                [n, n, 1],
+                [nx, ny, 1],
                 distances,
                 nearest_neighbor,
                 hopping_parameters,
