@@ -540,15 +540,15 @@ class TBHamiltonian:
         ngy = max(int(np.floor(b / self.threshold)) - 1, 1)
 
         # calculate adjusted grid cell size in each dimension to perfectly fit the cell
-        gxs = a / ngx  # grid cell size in x
-        gys = b / ngy  # grid cell size in y
+        gxs = 1 / ngx  # grid cell size in x
+        gys = 1 / ngy  # grid cell size in y
 
         # create the grid
         grid: list[list[list[int]]] = [[[] for _ in range(ngx)] for _ in range(ngy)]
 
         # assign atoms to grid cells
         for ai, atom in enumerate(self.structure):
-            x, y, _ = atom.position
+            x, y, _ = atom.scaled_position
             gx = int(x / gxs)
             gy = int(y / gys)
             gx = ngx - 1 if gx == ngx else gx
