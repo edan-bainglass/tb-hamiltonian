@@ -766,7 +766,7 @@ class TBHamiltonian:
             (
                 self.hopping_parameters[i]
                 for i, d in enumerate(self.distances)
-                if distance == d
+                if np.isclose(distance, d, atol=1e-1)
             ),
             0.0,
         )
