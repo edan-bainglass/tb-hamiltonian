@@ -25,6 +25,7 @@ def compute_bands(
     onsite_term: float,
     alpha: list,
     band_params: dict,
+    use_mpi: bool = False,
     metadata: dict | None = None,
     suffix: str = "",
 ) -> WorkGraph:
@@ -42,6 +43,7 @@ def compute_bands(
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
         interlayer_coupling=interlayer_coupling,
+        use_mpi=use_mpi,
         computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
@@ -54,6 +56,7 @@ def compute_bands(
         potential_params=potential_params,
         onsite_term=onsite_term,
         alpha=alpha,
+        use_mpi=use_mpi,
         computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
@@ -63,6 +66,7 @@ def compute_bands(
         name=f"get_band_structure{suffix}",
         H=wg.tasks[f"apply_onsite_term{suffix}"].outputs["result"],
         band_params=band_params,
+        use_mpi=use_mpi,
         computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
@@ -84,6 +88,7 @@ def sweep_cell_sizes(
     alpha: list,
     band_params: dict,
     sizes: list,
+    use_mpi: bool = False,
     metadata: dict | None = None,
 ) -> WorkGraph:
     wg = WorkGraph("BandsCellSizeSweep")
@@ -109,6 +114,7 @@ def sweep_cell_sizes(
                 onsite_term=onsite_term,
                 alpha=alpha,
                 band_params=band_params,
+                use_mpi=use_mpi,
                 metadata=metadata,
                 suffix=suffix,
             ),
@@ -130,6 +136,7 @@ def sweep_onsite_parameters(
     interlayer_coupling: float,
     sweep_params: dict,
     band_params: dict,
+    use_mpi: bool = False,
     metadata: dict | None = None,
 ) -> WorkGraph:
     wg = WorkGraph("BandsOnsiteParameterSweep")
@@ -146,6 +153,7 @@ def sweep_onsite_parameters(
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
         interlayer_coupling=interlayer_coupling,
+        use_mpi=use_mpi,
         computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
@@ -186,6 +194,7 @@ def sweep_onsite_parameters(
             calculations.apply_onsite_term,
             name=f"apply_onsite_term_{label}",
             **task_params,
+            use_mpi=use_mpi,
             computer=task_metadata.get("computer", "localhost"),
             metadata=task_metadata.get("metadata", {}),
         )
@@ -196,6 +205,7 @@ def sweep_onsite_parameters(
             name=f"get_band_structure_{label}",
             H=wg.tasks[f"apply_onsite_term_{label}"].outputs["result"],
             band_params=band_params,
+            use_mpi=use_mpi,
             computer=task_metadata.get("computer", "localhost"),
             metadata=task_metadata.get("metadata", {}),
         )

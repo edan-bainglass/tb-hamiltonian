@@ -75,5 +75,9 @@ def apply_onsite_term(
 def get_band_structure(
     H: TBHamiltonian,
     band_params: dict,
+    use_mpi: bool = False,
 ) -> BandStructure:
-    return H.get_band_structure(**band_params)
+    return H.get_band_structure(
+        **band_params,
+        use_mpi=use_mpi,
+    )
