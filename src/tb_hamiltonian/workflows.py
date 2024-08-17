@@ -11,14 +11,16 @@ from tb_hamiltonian.utils import zipped
 
 @task.graph_builder()
 def compute_bands(
-    structure_label: str,
+    *,
+    structure_label: str = "",
     initial_structure: Atoms,
-    repetitions: list,
+    repetitions: list | None = None,
+    lengths: list | None = None,
     distances: list,
     nearest_neighbor: int,
     hopping_parameters: list,
     interlayer_coupling: float,
-    potential_type: str,
+    potential_type: str = "null",
     potential_params: dict,
     onsite_term: float,
     alpha: list,
@@ -28,21 +30,14 @@ def compute_bands(
 ) -> WorkGraph:
     suffix = f"_{suffix}" if suffix else ""
     wg = WorkGraph(f"Bands{suffix}")
-    task_metadata: dict = metadata.get("define_structure", {})
-    wg.add_task(
-        calculations.define_structure,
-        name=f"define_structure{suffix}",
-        initial_structure=initial_structure,
-        repetitions=repetitions,
-        structure_label=structure_label,
-        computer=task_metadata.get("computer", "localhost"),
-        metadata=task_metadata.get("metadata", {}),
-    )
     task_metadata: dict = metadata.get("build_hamiltonian", {})
     wg.add_task(
         calculations.build_hamiltonian,
         name=f"build_hamiltonian{suffix}",
-        structure=wg.tasks[f"define_structure{suffix}"].outputs["result"],
+        initial_structure=initial_structure,
+        repetitions=repetitions,
+        lengths=lengths,
+        structure_label=structure_label,
         distances=distances,
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
@@ -54,7 +49,7 @@ def compute_bands(
     wg.add_task(
         calculations.apply_onsite_term,
         name=f"apply_onsite_term{suffix}",
-        H=wg.tasks[f"build_hamiltonian{suffix}"].outputs["result"],
+        H=wg.tasks[f"build_hamiltonian{suffix}"].outputs["H"],
         potential_type=potential_type,
         potential_params=potential_params,
         onsite_term=onsite_term,
@@ -76,13 +71,14 @@ def compute_bands(
 
 @task.graph_builder()
 def sweep_cell_sizes(
-    structure_label: str,
+    *,
+    structure_label: str = "",
     initial_structure: Atoms,
     distances: list,
     nearest_neighbor: int,
     hopping_parameters: list,
     interlayer_coupling: float,
-    potential_type: str,
+    potential_type: str = "null",
     potential_params: dict,
     onsite_term: float,
     alpha: list,
@@ -101,19 +97,19 @@ def sweep_cell_sizes(
         suffix = f"{nx}x{ny}"
         wg.add_task(
             compute_bands(
-                structure_label,
-                initial_structure,
-                [nx, ny, 1],
-                distances,
-                nearest_neighbor,
-                hopping_parameters,
-                interlayer_coupling,
-                potential_type,
-                potential_params,
-                onsite_term,
-                alpha,
-                band_params,
-                metadata,
+                structure_label=structure_label,
+                initial_structure=initial_structure,
+                repetitions=[nx, ny, 1],
+                distances=distances,
+                nearest_neighbor=nearest_neighbor,
+                hopping_parameters=hopping_parameters,
+                interlayer_coupling=interlayer_coupling,
+                potential_type=potential_type,
+                potential_params=potential_params,
+                onsite_term=onsite_term,
+                alpha=alpha,
+                band_params=band_params,
+                metadata=metadata,
                 suffix=suffix,
             ),
             name=f"Bands_{suffix}",
@@ -123,9 +119,11 @@ def sweep_cell_sizes(
 
 @task.graph_builder()
 def sweep_onsite_parameters(
-    structure_label: str,
+    *,
+    structure_label: str = "",
     initial_structure: Atoms,
-    repetitions: list,
+    repetitions: list | None = None,
+    lengths: list | None = None,
     distances: list,
     nearest_neighbor: int,
     hopping_parameters: list,
@@ -136,22 +134,14 @@ def sweep_onsite_parameters(
 ) -> WorkGraph:
     wg = WorkGraph("BandsOnsiteParameterSweep")
 
-    task_metadata: dict = metadata.get("define_structure", {})
-    wg.add_task(
-        calculations.define_structure,
-        name="define_structure",
-        initial_structure=initial_structure,
-        repetitions=repetitions,
-        structure_label=structure_label,
-        computer=task_metadata.get("computer", "localhost"),
-        metadata=task_metadata.get("metadata", {}),
-    )
-
     task_metadata: dict = metadata.get("build_hamiltonian", {})
     wg.add_task(
         calculations.build_hamiltonian,
         name="build_hamiltonian",
-        structure=wg.tasks["define_structure"].outputs["result"],
+        initial_structure=initial_structure,
+        repetitions=repetitions,
+        lengths=lengths,
+        structure_label=structure_label,
         distances=distances,
         nearest_neighbor=nearest_neighbor,
         hopping_parameters=hopping_parameters,
@@ -162,7 +152,7 @@ def sweep_onsite_parameters(
 
     for params in zipped(sweep_params):
         task_params = {
-            "H": wg.tasks["build_hamiltonian"].outputs["result"],
+            "H": wg.tasks["build_hamiltonian"].outputs["H"],
             "potential_type": params.get("potential_type", "null"),
             "potential_params": {},
         }

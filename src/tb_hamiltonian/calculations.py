@@ -7,33 +7,35 @@ from tb_hamiltonian.hamiltonian import TBHamiltonian
 from tb_hamiltonian.utils import BandStructure
 
 
-@task.pythonjob()
-def define_structure(
+@task.pythonjob(
+    outputs=[
+        {"name": "structure"},
+        {"name": "H"},
+    ]
+)
+def build_hamiltonian(
     initial_structure: Atoms,
     repetitions: list = None,
+    lengths: list = None,
     structure_label: str = "",
-) -> Atoms:
-    from tb_hamiltonian.utils import get_structure
-
-    structure = get_structure(
-        initial_structure,
-        repetitions=repetitions or [1, 1, 1],
-    )
-    structure.info["label"] = structure_label
-    structure.write("POSCAR", format="vasp")
-    return structure
-
-
-@task.pythonjob()
-def build_hamiltonian(
-    structure: Atoms,
     distances: list = None,
     nearest_neighbor: int = 1,
     hopping_parameters: list = None,
     interlayer_coupling: float = 0.0,
     use_mpi: bool = False,
-) -> TBHamiltonian:
+) -> dict:
     from tb_hamiltonian.hamiltonian import TBHamiltonian
+    from tb_hamiltonian.utils import get_structure
+
+    structure = get_structure(
+        initial_structure,
+        repetitions=repetitions,
+        lengths=lengths,
+    )
+    structure.info["label"] = structure_label
+
+    filename = "POSCAR"
+    structure.write(filename, format="vasp")
 
     H = TBHamiltonian(
         structure=structure,
@@ -44,7 +46,10 @@ def build_hamiltonian(
     )
     H.build()
     H.write_to_file(use_mpi=use_mpi)
-    return H
+    return {
+        "structure": structure,
+        "H": H,
+    }
 
 
 @task.pythonjob()
