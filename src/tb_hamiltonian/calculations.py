@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiida_workgraph import task
 from ase import Atoms
 
+from tb_hamiltonian.continuum import GrapheneContinuumModel
 from tb_hamiltonian.hamiltonian import TBHamiltonian
 from tb_hamiltonian.utils import BandStructure
 
@@ -80,4 +81,58 @@ def get_band_structure(
     return H.get_band_structure(
         **band_params,
         use_mpi=use_mpi,
+    )
+
+
+@task.pythonjob()
+def get_continuum_model(
+    nearest_neighbor_hopping: float = 2.7,
+    bond_length: float = 1.42,
+    interlayer_hopping: float = 0.4,
+    superlattice_potential_periodicity: int = 10,
+    superlattice_potential_amplitude: float = 0.0,
+    gate_bias: float = 0.0,
+    layer_potential_ratio: float = 1.0,
+    nearest_neighbor_order: int = 1,
+) -> GrapheneContinuumModel:
+    return GrapheneContinuumModel(
+        nearest_neighbor_hopping,
+        bond_length,
+        interlayer_hopping,
+        superlattice_potential_periodicity,
+        superlattice_potential_amplitude,
+        gate_bias,
+        layer_potential_ratio,
+        nearest_neighbor_order,
+    )
+
+
+@task.pythonjob()
+def get_continuum_band_structure(
+    model: GrapheneContinuumModel,
+    high_sym_points: dict,
+    path: str,
+    total_points: int = 100,
+    use_mpi: bool = False,
+) -> BandStructure:
+    import numpy as np
+
+    from tb_hamiltonian.continuum import interpolate_path
+    from tb_hamiltonian.utils import BandStructure
+
+    path_points = [np.array(high_sym_points[point]) for point in path.split()]
+    kpath, k_point_indices = interpolate_path(path_points, total_points)
+    eigenvalues = model.get_eigenvalues(kpath, use_mpi=use_mpi)
+
+    nbands = eigenvalues.shape[1]
+    mid_band = int(nbands / 2)
+    EF = (np.min(eigenvalues[:, mid_band]) + np.max(eigenvalues[:, mid_band - 1])) / 2
+
+    return BandStructure(
+        high_sym_points=high_sym_points,
+        path=path,
+        distances=[*range(len(eigenvalues))],
+        eigenvalues=eigenvalues,
+        high_sym_indices=k_point_indices,
+        e_fermi=EF,
     )

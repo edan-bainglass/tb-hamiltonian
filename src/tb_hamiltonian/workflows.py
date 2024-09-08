@@ -207,3 +207,49 @@ def sweep_onsite_parameters(
         )
 
     return wg
+
+
+@task.graph_builder()
+def compute_continuum_bands(
+    *,
+    nearest_neighbor_hopping: float = 2.7,
+    bond_length: float = 1.42,
+    interlayer_hopping: float = 0.4,
+    superlattice_potential_periodicity: int = 10,
+    superlattice_potential_amplitude: float = 0.0,
+    gate_bias: float = 0.0,
+    layer_potential_ratio: float = 1.0,
+    nearest_neighbor_order: int = 1,
+    high_sym_points: dict,
+    path: str,
+    total_points: int = 100,
+    use_mpi: bool = False,
+    metadata: dict | None = None,
+) -> WorkGraph:
+    wg = WorkGraph("ContinuumBands")
+    task_metadata: dict = metadata.get("get_continuum_model", {})
+    wg.add_task(
+        calculations.get_continuum_model,
+        name="get_continuum_model",
+        nearest_neighbor_hopping=nearest_neighbor_hopping,
+        bond_length=bond_length,
+        interlayer_hopping=interlayer_hopping,
+        superlattice_potential_periodicity=superlattice_potential_periodicity,
+        superlattice_potential_amplitude=superlattice_potential_amplitude,
+        gate_bias=gate_bias,
+        layer_potential_ratio=layer_potential_ratio,
+        nearest_neighbor_order=nearest_neighbor_order,
+        metadata=task_metadata.get("metadata", {}),
+    )
+    task_metadata: dict = metadata.get("get_continuum_band_structure", {})
+    wg.add_task(
+        calculations.get_continuum_band_structure,
+        name="get_continuum_band_structure",
+        model=wg.tasks["get_continuum_model"].outputs["result"],
+        high_sym_points=high_sym_points,
+        path=path,
+        total_points=total_points,
+        use_mpi=use_mpi,
+        metadata=task_metadata.get("metadata", {}),
+    )
+    return wg
