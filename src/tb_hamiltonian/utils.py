@@ -166,6 +166,8 @@ class BandStructure:
         K-point distances.
     `eigenvalues` : `np.ndarray`
         Eigenvalues of the band structure.
+    `high_sym_indices` : `t.Sequence[int]`, optional
+        High symmetry point indices.
     `e_fermi` : `float`, optional
         Fermi energy level, zero by default.
     """
@@ -176,6 +178,7 @@ class BandStructure:
         path: str | t.Sequence[str],
         distances: np.ndarray,
         eigenvalues: np.ndarray,
+        high_sym_indices: t.Sequence[int] | None = None,
         e_fermi=0.0,
     ):
         """`BandStructure` constructor."""
@@ -183,6 +186,7 @@ class BandStructure:
         self.high_sym_points = high_sym_points
         self.distances = distances
         self.eigenvalues = eigenvalues
+        self.high_sym_indices = high_sym_indices
         self.e_fermi = e_fermi
 
     def get_band_edges(self) -> t.Tuple[float, float]:
@@ -255,9 +259,12 @@ class BandStructure:
             else:
                 raise ValueError("Invalid mode. Choose 'line' or 'scatter'.")
 
-        tick_positions = np.cumsum(
-            np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
-        )
+        if self.high_sym_indices:
+            tick_positions = self.high_sym_indices
+        else:
+            tick_positions = np.cumsum(
+                np.linalg.norm(np.diff(np.array(segments), axis=0, prepend=0), axis=1)
+            )
 
         for x in tick_positions[1:-1]:
             ax.axvline(x, c="k", ls="--", lw=0.5)
