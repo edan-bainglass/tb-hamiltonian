@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import typing as t
+
 import numpy as np
 
 
@@ -252,66 +254,71 @@ class GrapheneContinuumModel:
     def H_total_Kp(self, k: np.ndarray) -> np.ndarray:
         return self.H_BLG_Kp(k) + self.H_bias + self.H_superlattice
 
-    def get_eigenvalues(
-        self,
-        kpath: np.ndarray,
-        Kpoint: str = "K",
-        nbands: int = 0,
-        use_mpi: bool = False,
-    ) -> np.ndarray | None:
-        """Compute the eigenvalues along a k-path.
 
-        Parameters
-        ----------
-        `kpath` : `np.ndarray`
-            List of k-points along the path.
-        `Kpoint` : `str`, optional
-            K-point in the Brillouin zone.
-        `nbands` : `int`, optional
-            Number of bands to consider.
-        `use_mpi` : `bool`, optional
-            Whether to use MPI for parallel computation.
+def compute_eigenstuff(
+    H_calculator: t.Callable[[np.ndarray], np.ndarray],
+    kpath: np.ndarray,
+    nbands: int = 0,
+    use_mpi: bool = False,
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Compute the eigenvalues and eigenvectors along a k-path.
 
-        Returns
-        -------
-        `np.ndarray`
-            Eigenvalues along the k-path.
-        """
-        assert Kpoint in {"K", "Kp"}, "Incorrect Kpoint. Must be 'K' or 'Kp'."
+    Parameters
+    ----------
+    `H_calculator` : `Callable[[np.ndarray], np.ndarray]`
+        Function that computes the Hamiltonian for a given k-point.
+    `kpath` : `np.ndarray`
+        List of k-points along the path.
+    `nbands` : `int`, optional
+        Number of bands to consider.
+    `use_mpi` : `bool`, optional
+        Whether to use MPI for parallel computation.
 
-        H_calculator = self.H_total_K if Kpoint == "K" else self.H_total_Kp
+    Returns
+    -------
+    `tuple[np.ndarray, np.ndarray]`, optional
+        Eigenvalues and eigenvectors along the k-path.
+    """
+    nbands = nbands or H_calculator(np.array([0, 0])).shape[0]
 
-        nbands = nbands or H_calculator(np.array([0, 0])).shape[0]
+    if use_mpi:
+        from mpi4py import MPI
 
-        if use_mpi:
-            from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
-            comm = MPI.COMM_WORLD
-            rank = comm.Get_rank()
-            size = comm.Get_size()
+        kpath_split = np.array_split(kpath, size)
+        local_kpath = comm.scatter(kpath_split, root=0)
+        total_kpoints = len(kpath)
 
-            kpath_split = np.array_split(kpath, size)
-            local_kpath = comm.scatter(kpath_split, root=0)
-            total_kpoints = len(kpath)
+        all_eigenvalues = np.zeros((total_kpoints, nbands)) if rank == 0 else None
+        all_eigenvectors = (
+            np.zeros((total_kpoints, nbands, nbands), dtype=complex)
+            if rank == 0
+            else None
+        )
 
-            all_eigenvalues = np.zeros((total_kpoints, nbands)) if rank == 0 else None
+    else:
+        rank = 0
+        local_kpath = kpath
 
-        else:
-            rank = 0
-            local_kpath = kpath
+    eigenvalues = np.zeros((len(local_kpath), nbands))
+    eigenvectors = np.zeros((len(local_kpath), nbands, nbands), dtype=complex)
 
-        eigenvalues = np.zeros((len(local_kpath), nbands))
+    for i, k in enumerate(local_kpath):
+        H = H_calculator(k)
+        eigvals, eigvecs = np.linalg.eigh(H)
+        eigenvalues[i] = eigvals
+        eigenvectors[i] = eigvecs
 
-        for i, k in enumerate(local_kpath):
-            H = H_calculator(k)
-            k_eigenvalues = np.sort(np.real(np.linalg.eigvals(H)))[:nbands]
-            eigenvalues[i, :] = k_eigenvalues
+    if use_mpi:
+        comm.Gather(eigenvalues, all_eigenvalues, root=0)
+        comm.Gather(eigenvectors, all_eigenvectors, root=0)
+        eigenvalues = all_eigenvalues if rank == 0 else None
+        eigenvectors = all_eigenvectors if rank == 0 else None
 
-        if use_mpi:
-            comm.Gather(eigenvalues, all_eigenvalues, root=0)
-            eigenvalues = all_eigenvalues if rank == 0 else None
-
-        return eigenvalues if rank == 0 else None
+    return (eigenvalues, eigenvectors) if rank == 0 else (None, None)
 
 
 def interpolate_path(

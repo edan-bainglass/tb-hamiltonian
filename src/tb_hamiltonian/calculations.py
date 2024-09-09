@@ -112,17 +112,18 @@ def get_continuum_band_structure(
     model: GrapheneContinuumModel,
     high_sym_points: dict,
     path: str,
+    Kpoint: str = "K",
     total_points: int = 100,
     use_mpi: bool = False,
 ) -> BandStructure:
     import numpy as np
 
-    from tb_hamiltonian.continuum import interpolate_path
-    from tb_hamiltonian.utils import BandStructure
+    from tb_hamiltonian.continuum import interpolate_path, compute_eigenstuff
 
     path_points = [np.array(high_sym_points[point]) for point in path.split()]
     kpath, k_point_indices = interpolate_path(path_points, total_points)
-    eigenvalues = model.get_eigenvalues(kpath, use_mpi=use_mpi)
+    H_calculator = model.H_total_K if Kpoint == "K" else model.H_total_Kp
+    eigenvalues, _ = compute_eigenstuff(H_calculator, kpath, use_mpi=use_mpi)
 
     nbands = eigenvalues.shape[1]
     mid_band = int(nbands / 2)
