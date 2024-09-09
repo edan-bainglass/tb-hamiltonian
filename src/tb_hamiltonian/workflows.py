@@ -239,6 +239,7 @@ def compute_continuum_bands(
         gate_bias=gate_bias,
         layer_potential_ratio=layer_potential_ratio,
         nearest_neighbor_order=nearest_neighbor_order,
+        computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
     task_metadata: dict = metadata.get("get_continuum_band_structure", {})
@@ -250,6 +251,7 @@ def compute_continuum_bands(
         path=path,
         total_points=total_points,
         use_mpi=use_mpi,
+        computer=task_metadata.get("computer", "localhost"),
         metadata=task_metadata.get("metadata", {}),
     )
     return wg
