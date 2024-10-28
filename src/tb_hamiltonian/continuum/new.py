@@ -289,10 +289,15 @@ def Q_concentric(b1, b2, b1G, b2G, max_val=sys.maxsize):
         new_vectors = 0
 
         for m1 in range(-m_sum, m_sum + 1):
-            m2_vals = [m_sum - abs(m1), -(m_sum - abs(m1))]
+            m2 = m_sum - abs(m1)
 
-            for m2 in m2_vals:
-                Q = m1 * b1 + m2 * b2
+            Q = m1 * b1 + m2 * b2
+            if not _is_in_GG_lattice(Q, vectors, b1G, b2G):
+                vectors.append(Q)
+                new_vectors += 1
+
+            if m2 != 0:
+                Q = m1 * b1 - m2 * b2
                 if not _is_in_GG_lattice(Q, vectors, b1G, b2G):
                     vectors.append(Q)
                     new_vectors += 1
