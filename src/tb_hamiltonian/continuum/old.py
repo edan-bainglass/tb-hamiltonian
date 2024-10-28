@@ -308,6 +308,7 @@ def compute_eigenstuff(
 
     for i, k in enumerate(local_kpath):
         H = H_calculator(k)
+        H = (H + H.T.conj()) / 2
         eigvals, eigvecs = np.linalg.eigh(H)
         eigenvalues[i] = eigvals
         eigenvectors[i] = eigvecs
