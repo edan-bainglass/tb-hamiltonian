@@ -278,7 +278,17 @@ def interpolate_path(
 def Qn(v):
     θ = np.pi / 3
     R60 = np.array([[np.cos(θ), -np.sin(θ)], [np.sin(θ), np.cos(θ)]])
-    return [v, *[R60 @ np.linalg.matrix_power(R60, i) @ v for i in range(6)]]
+
+    # Initialize rotated_vectors with the original vector
+    rotated_vectors = [v]
+    current_v = v
+
+    # Apply the 60-degree rotation 5 times and collect results
+    for _ in range(5):
+        current_v = R60 @ current_v  # Rotate by 60 degrees
+        rotated_vectors.append(current_v)
+
+    return rotated_vectors
 
 
 def Q_concentric(b1, b2, b1G, b2G, max_val=sys.maxsize):
