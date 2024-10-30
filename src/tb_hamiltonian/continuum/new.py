@@ -80,6 +80,47 @@ class BLGContinuumModel:
         self.VSL = superlattice_potential_amplitude
         self.V0 = gate_bias
         self.alpha = layer_potential_ratio
+
+    def compute_Qn(self):
+        θ = np.pi / 3
+        R60 = np.array([[np.cos(θ), -np.sin(θ)], [np.sin(θ), np.cos(θ)]])
+
+        # Initialize rotated_vectors with the original vector
+        rotated_vectors = [self.b1]
+        current_v = self.b1
+
+        # Apply the 60-degree rotation 5 times and collect results
+        for _ in range(5):
+            current_v = R60 @ current_v  # Rotate by 60 degrees
+            rotated_vectors.append(current_v)
+
+        return rotated_vectors
+
+    def Q_concentric(self, concentric_order):
+        """Generate concentric vectors in G defined by basis vectors b1 and b2."""
+        vectors = []
+
+        for m_sum in range(concentric_order + 1):
+            new_vectors = 0
+
+            for m1 in range(-m_sum, m_sum + 1):
+                m2 = m_sum - abs(m1)
+
+                Q = m1 * self.b1 + m2 * self.b2
+                if not _is_in_GG_lattice(Q, vectors, self.b1G, self.b2G):
+                    vectors.append(Q)
+                    new_vectors += 1
+
+                if m2 != 0:
+                    Q = m1 * self.b1 - m2 * self.b2
+                    if not _is_in_GG_lattice(Q, vectors, self.b1G, self.b2G):
+                        vectors.append(Q)
+                        new_vectors += 1
+
+            if new_vectors == 0:
+                break
+
+        return vectors
     def f(self, k):
         return 1 + np.exp(1j * np.dot(k, self.a1G)) + np.exp(1j * np.dot(k, self.a2G))
 
