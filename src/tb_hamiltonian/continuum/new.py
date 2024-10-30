@@ -253,6 +253,23 @@ class BLGContinuumModel:
 
         return H_folded
 
+    def decompose_and_keep_remainder(self, K):
+        # Create a matrix B using b1 and b2 as columns
+        B = np.column_stack((self.b1, self.b2))
+
+        # Solve for m1 and m2 (not necessarily integers)
+        coeffs = np.linalg.solve(B, K)
+
+        # Round m1 and m2 to the nearest integers
+        m1 = int(round(coeffs[0]))
+        m2 = int(round(coeffs[1]))
+
+        # Compute the remainder by subtracting the integer combination of b1 and b2 from P
+        rest = K - (m1 * self.b1 + m2 * self.b2)
+
+        # Return only the remainder
+        return rest
+
 
 def compute_eigenstuff(
     H_calculator: t.Callable[[np.ndarray], np.ndarray],
