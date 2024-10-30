@@ -347,49 +347,6 @@ def interpolate_path(
     return np.array(path), k_point_indices
 
 
-def Qn(v):
-    θ = np.pi / 3
-    R60 = np.array([[np.cos(θ), -np.sin(θ)], [np.sin(θ), np.cos(θ)]])
-
-    # Initialize rotated_vectors with the original vector
-    rotated_vectors = [v]
-    current_v = v
-
-    # Apply the 60-degree rotation 5 times and collect results
-    for _ in range(5):
-        current_v = R60 @ current_v  # Rotate by 60 degrees
-        rotated_vectors.append(current_v)
-
-    return rotated_vectors
-
-
-def Q_concentric(b1, b2, b1G, b2G, max_val=sys.maxsize):
-    """Generate concentric vectors in G defined by basis vectors b1 and b2."""
-    vectors = []
-
-    for m_sum in range(max_val + 1):
-        new_vectors = 0
-
-        for m1 in range(-m_sum, m_sum + 1):
-            m2 = m_sum - abs(m1)
-
-            Q = m1 * b1 + m2 * b2
-            if not _is_in_GG_lattice(Q, vectors, b1G, b2G):
-                vectors.append(Q)
-                new_vectors += 1
-
-            if m2 != 0:
-                Q = m1 * b1 - m2 * b2
-                if not _is_in_GG_lattice(Q, vectors, b1G, b2G):
-                    vectors.append(Q)
-                    new_vectors += 1
-
-        if new_vectors == 0:
-            break
-
-    return vectors
-
-
 def distance(p1, p2):
     return np.linalg.norm(p2 - p1)
 
