@@ -18,24 +18,68 @@ class BLGContinuumModel:
     s2 = np.array([[0, -1j], [1j, 0]], dtype=complex)
     s3 = np.array([[1, 0], [0, -1]], dtype=complex)
 
-    def __init__(self, bond_length=1.42):
+    def __init__(
+        self,
+        nearest_neighbor_hopping=2.7,
+        bond_length=1.42,
+        interlayer_hopping=0.4,
+        superlattice_potential_periodicity=10,
+        superlattice_potential_amplitude=0.0,
+        gate_bias=0.0,
+        layer_potential_ratio=0.0,
+        concentric_order=1,
+    ):
         """`GrapheneContinuumModel` constructor.
 
         Parameters
         ----------
+        `nearest_neighbor_hopping` : `float`, optional
+            Nearest neighbor hopping energy in eV.
         `bond_length` : `float`, optional
             Carbon-carbon bond length in Angstrom.
+        `interlayer_hopping` : `float`, optional
+            Interlayer hopping energy in eV.
+        `superlattice_potential_periodicity` : `int`, optional
+            Periodicity of the superlattice potential in Angstrom.
+        `superlattice_potential_amplitude` : `float`, optional
+            Amplitude of the superlattice potential in eV.
+        `gate_bias` : `float`, optional
+            Bias potential in eV.
+        `layer_potential_ratio` : `float`, optional
+            Ratio of the potential in the top layer to the bottom layer.
+        `concentric_order` : `int`, optional
+            Used in computing `Q_concentric`.
         """
-        self.bond_length = bond_length
+        self.t1 = nearest_neighbor_hopping
+        self.dcc = bond_length
+        self.tp = interlayer_hopping
+        self.L = superlattice_potential_periodicity
 
-        # Real space lattice vectors
+        # Real space lattice vectors for Graphene unit cell
         self.a1G = np.sqrt(3) * np.array([0.5, 0.5 * np.sqrt(3)]) * bond_length
         self.a2G = np.sqrt(3) * np.array([-0.5, 0.5 * np.sqrt(3)]) * bond_length
 
-        # Reciprocal space lattice vectors
+        # Reciprocal space lattice vectors for Graphene unit cell
         self.b1G = 4 * np.pi / (3 * bond_length) * np.array([0.5 * np.sqrt(3), 0.5])
         self.b2G = 4 * np.pi / (3 * bond_length) * np.array([-0.5 * np.sqrt(3), 0.5])
 
+        # Reciprocal space lattice vectors for the supercell
+        self.b1 = self.b1G / np.floor(
+            2 * superlattice_potential_periodicity / 3 / bond_length
+        )
+        self.b2 = self.b2G / np.floor(
+            2 * superlattice_potential_periodicity / 3 / bond_length
+        )
+
+        self.KG = (self.b1G - self.b2G) / 3
+
+        self.Qn = self.compute_Qn()
+
+        self.Q_vectors = self.Q_concentric(concentric_order)
+
+        self.VSL = superlattice_potential_amplitude
+        self.V0 = gate_bias
+        self.alpha = layer_potential_ratio
     def f(self, k):
         return 1 + np.exp(1j * np.dot(k, self.a1G)) + np.exp(1j * np.dot(k, self.a2G))
 
