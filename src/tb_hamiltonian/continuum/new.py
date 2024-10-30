@@ -270,6 +270,14 @@ class BLGContinuumModel:
         # Return only the remainder
         return rest
 
+    def H2D_KG(self, k: np.ndarray) -> np.ndarray:
+        """Compute the Hamiltonian around K."""
+        return self.H_folded(k + self.KG)
+
+    def H2D_KpG(self, k: np.ndarray) -> np.ndarray:
+        """Compute the Hamiltonian around Kp."""
+        return self.H_folded(k - self.KG)
+
 
 def compute_eigenstuff(
     H_calculator: t.Callable[[np.ndarray], np.ndarray],
