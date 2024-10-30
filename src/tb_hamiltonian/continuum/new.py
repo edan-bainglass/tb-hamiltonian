@@ -121,37 +121,27 @@ class BLGContinuumModel:
                 break
 
         return vectors
+
     def f(self, k):
         return 1 + np.exp(1j * np.dot(k, self.a1G)) + np.exp(1j * np.dot(k, self.a2G))
 
-    def M_V0(self, V0: float) -> np.ndarray:
+    def M_V0(self) -> np.ndarray:
         """Compute the bias Hamiltonian.
-
-        Parameters
-        ----------
-        `V0` : `float`
-            Gate bias potential.
 
         Returns
         -------
         `np.ndarray`
             Bias Hamiltonian.
         """
-        return V0 * np.kron(self.s3, self.s0)
+        return self.V0 * np.kron(self.s3, self.s0)
 
-    def H_V0(self, k: np.ndarray, t1: float, tp: float, V0: float) -> np.ndarray:
+    def H_V0(self, k: np.ndarray) -> np.ndarray:
         """Compute the superlattice bias Hamiltonian.
 
         parameters
         ----------
         `k` : `np.ndarray`
             Momentum vector.
-        `t1`: `float`
-            Nearest neighbor hopping energy in eV.
-        tp : `float`
-            Interlayer hopping energy in eV.
-        `V0` : `float`
-            Gate bias potential in eV.
 
         returns
         -------
@@ -159,9 +149,10 @@ class BLGContinuumModel:
             Superlattice Hamiltonian under a gate bias.
         """
         f_k = self.f(k)
+        tp = self.tp
 
-        v1 = -t1 * f_k
-        v2 = -t1 * np.conj(f_k)
+        v1 = -self.t1 * f_k
+        v2 = -self.t1 * np.conj(f_k)
 
         H_bias = np.array(
             [
@@ -172,9 +163,9 @@ class BLGContinuumModel:
             ]
         )
 
-        return H_bias + self.M_V0(V0)
+        return H_bias + self.M_V0()
 
-    def M_VSL(self, VSL: float, alpha: float) -> np.ndarray:
+    def M_VSL(self) -> np.ndarray:
         """Compute the superlattice potential Hamiltonian.
 
         Parameters
@@ -189,67 +180,39 @@ class BLGContinuumModel:
         `np.ndarray`
             Superlattice potential Hamiltonian.
         """
-        return (VSL / 2) * (
+        return (self.VSL / 2) * (
             np.kron(self.s0 + self.s3, self.s0)
-            + (alpha * np.kron(self.s0 - self.s3, self.s0))
+            + (self.alpha * np.kron(self.s0 - self.s3, self.s0))
         )
 
-    def H_folded(
-        self,
-        k: np.ndarray,
-        t1: float,
-        tp: float,
-        V0: float,
-        VSL: float,
-        alpha: float,
-        Q_vectors: list[np.ndarray],
-        Qn: np.ndarray,
-    ) -> np.ndarray:
+    def H_folded(self, k: np.ndarray) -> np.ndarray:
         """Compute the superlattice BLG Hamiltonian.
 
         Parameters
         ----------
         `k` : `np.ndarray`
             Momentum vector.
-        `t1` : `float`
-            Nearest neighbor hopping energy in eV.
-        `tp` : `float`
-            Interlayer hopping energy in eV.
-        `V0` : `float`
-            Gate bias potential in eV.
-        `VSL` : `float`
-            Amplitude of the superlattice potential in eV.
-        `alpha` : `float`
-            Ratio of the potential in the top layer to the bottom layer.
-        `Q_vectors` : `list[np.ndarray]`
-            List of Q vectors.
-        `Qn` : `np.ndarray`
-            Q vectors for the superlattice potential.
 
         Returns
         -------
         `np.ndarray`
             Superlattice BLG Hamiltonian in the Dirac basis.
         """
-        dim = 4 * len(Q_vectors)
+        dim = 4 * len(self.Q_vectors)
         H_folded = np.zeros((dim, dim), dtype=complex)
 
-        for i in range(len(Q_vectors)):
+        for i in range(len(self.Q_vectors)):
             i_start = i * 4
             i_end = i_start + 4
+            H_folded[i_start:i_end, i_start:i_end] += self.H_V0(k + self.Q_vectors[i])
 
-            H_bias = self.H_V0(k + Q_vectors[i], t1, tp, V0)
-            H_folded[i_start:i_end, i_start:i_end] += H_bias
-
-            for Q in Qn:
-                idx = _find_first(Q_vectors, Q + Q_vectors[i])
+            for Q in self.Qn:
+                idx = _find_first(self.Q_vectors, Q + self.Q_vectors[i])
 
                 if idx is not None:
                     j_start = idx * 4
                     j_end = j_start + 4
-
-                    M_VSL = self.M_VSL(VSL, alpha)
-                    H_folded[i_start:i_end, j_start:j_end] += M_VSL
+                    H_folded[i_start:i_end, j_start:j_end] += self.M_VSL()
 
         return H_folded
 
